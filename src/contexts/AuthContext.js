@@ -11,6 +11,7 @@ import {
 import CryptoJS from 'crypto-js';
 import AWS from 'aws-sdk';
 import awsConfig from '../aws-config';
+import googleAuthService from '../services/googleAuthService';
 
 
 const AuthContext = createContext();
@@ -83,7 +84,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      // First check if we have tokens in localStorage
+      // Now that Google users are also stored in Cognito, we only need to check Cognito tokens
       const clientId = awsConfig.Auth.Cognito.userPoolClientId;
       const lastAuthUser = localStorage.getItem(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`);
 
@@ -98,9 +99,9 @@ export const AuthProvider = ({ children }) => {
       const accessToken = localStorage.getItem(`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.accessToken`);
       const idToken = localStorage.getItem(`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.idToken`);
 
-      if (!accessToken || !idToken || isTokenExpired(accessToken) || isTokenExpired(idToken)) {
-        // No valid tokens or tokens are expired, clear everything
-        console.log('Tokens are missing or expired, clearing auth state');
+      if (!accessToken || !idToken) {
+        // No tokens at all, clear everything
+        console.log('No tokens found, clearing auth state');
         localStorage.removeItem(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`);
         localStorage.removeItem(`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.accessToken`);
         localStorage.removeItem(`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.idToken`);
@@ -110,20 +111,85 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // Try to get current user from Amplify
-      const currentUser = await getCurrentUser();
-      console.log('Current user from Amplify:', currentUser);
+      // Check if tokens are expired
+      if (isTokenExpired(accessToken) || isTokenExpired(idToken)) {
+        console.log('Tokens are expired, but continuing with stored user data');
+        // Don't immediately clear - let the user stay logged in but with potentially stale data
+        // The app can handle token refresh when making API calls
+      }
 
-      setUser(currentUser);
+      // If we have valid tokens, try to restore user from ID token first
+      try {
+        const idTokenPayload = JSON.parse(atob(idToken.split('.')[1]));
+        const user = {
+          username: lastAuthUser,
+          attributes: {
+            email: idTokenPayload.email,
+            email_verified: idTokenPayload.email_verified,
+            sub: idTokenPayload.sub
+          }
+        };
 
-      // Get user role from custom attributes
-      const userAttributes = await fetchUserAttributes();
-      console.log('User attributes:', userAttributes);
+        setUser(user);
 
-      const roleAttribute = userAttributes['custom:role'];
-      setUserRole(roleAttribute || 'user');
+        // Try to get role from ID token first, then fallback to fetchUserAttributes
+        let roleAttribute = 'user';
 
-      console.log('User authenticated successfully:', currentUser.username, 'Role:', roleAttribute || 'user');
+        // Check if role is stored in the ID token
+        if (idTokenPayload['custom:role']) {
+          roleAttribute = idTokenPayload['custom:role'];
+          console.log('Role found in ID token:', roleAttribute);
+        } else {
+          // Fallback: try to get role from fetchUserAttributes, but don't fail if it doesn't work
+          try {
+            const userAttributes = await fetchUserAttributes();
+            roleAttribute = userAttributes['custom:role'] || 'user';
+            console.log('Role fetched from attributes:', roleAttribute);
+          } catch (roleError) {
+            console.warn('Could not fetch user role from attributes, checking localStorage for cached role:', roleError.message);
+
+            // Last resort: check if we have a cached role in localStorage
+            const cachedRole = localStorage.getItem(`petverse_user_role_${lastAuthUser}`);
+            if (cachedRole && (cachedRole === 'admin' || cachedRole === 'user')) {
+              roleAttribute = cachedRole;
+              console.log('Using cached role from localStorage:', roleAttribute);
+            } else {
+              console.log('No cached role found, using default: user');
+            }
+          }
+        }
+
+        // Cache the role for future use
+        localStorage.setItem(`petverse_user_role_${lastAuthUser}`, roleAttribute);
+
+        setUserRole(roleAttribute);
+        console.log('User restored from tokens:', user.username, 'Role:', roleAttribute);
+
+      } catch (tokenParseError) {
+        console.warn('Failed to parse ID token, falling back to getCurrentUser:', tokenParseError.message);
+
+        // Fallback to getCurrentUser if token parsing fails
+        try {
+          const currentUser = await getCurrentUser();
+          console.log('Current user from Amplify:', currentUser);
+          setUser(currentUser);
+
+          // Try to get role
+          try {
+            const userAttributes = await fetchUserAttributes();
+            const roleAttribute = userAttributes['custom:role'];
+            setUserRole(roleAttribute || 'user');
+            console.log('User authenticated via getCurrentUser:', currentUser.username, 'Role:', roleAttribute || 'user');
+          } catch (attributeError) {
+            console.warn('Failed to fetch user attributes, using default role:', attributeError.message);
+            setUserRole('user');
+            console.log('User authenticated via getCurrentUser:', currentUser.username, 'Role: user (default)');
+          }
+        } catch (getCurrentUserError) {
+          console.error('getCurrentUser also failed:', getCurrentUserError.message);
+          throw getCurrentUserError;
+        }
+      }
 
     } catch (error) {
       console.log('No authenticated user found:', error.message);
@@ -186,10 +252,16 @@ export const AuthProvider = ({ children }) => {
           }
         };
 
-        setUser(user);
-        setUserRole(idTokenPayload['custom:role'] || 'user');
+        const userRole = idTokenPayload['custom:role'] || 'user';
 
-        return { user, role: idTokenPayload['custom:role'] || 'user' };
+        // Cache the role for future use
+        localStorage.setItem(`petverse_user_role_${email}`, userRole);
+
+        setUser(user);
+        setUserRole(userRole);
+
+        console.log('Login successful:', user.username, 'Role:', userRole);
+        return { user, role: userRole };
       } else if (result.ChallengeName) {
         // Handle different challenge types
 
@@ -276,10 +348,10 @@ export const AuthProvider = ({ children }) => {
 
   const handleSignOut = async () => {
     try {
-      // Sign out from Amplify
+      
       await signOut();
 
-      // Clear all localStorage tokens manually as well
+    
       const clientId = awsConfig.Auth.Cognito.userPoolClientId;
       const lastAuthUser = localStorage.getItem(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`);
 
@@ -290,9 +362,20 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem(`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.refreshToken`);
       }
 
-      // Clear any other Cognito-related localStorage items
+     
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('CognitoIdentityServiceProvider')) {
+          localStorage.removeItem(key);
+        }
+      });
+
+
+      localStorage.removeItem('googleUser');
+      localStorage.removeItem('authProvider');
+
+      // Clear cached roles
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('petverse_user_role_')) {
           localStorage.removeItem(key);
         }
       });
@@ -304,7 +387,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Error signing out:', error);
 
-      // Even if signOut fails, clear local state and tokens
+      
       const clientId = awsConfig.Auth.Cognito.userPoolClientId;
       const lastAuthUser = localStorage.getItem(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`);
 
@@ -314,6 +397,9 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem(`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.idToken`);
         localStorage.removeItem(`CognitoIdentityServiceProvider.${clientId}.${lastAuthUser}.refreshToken`);
       }
+
+      localStorage.removeItem('googleUser');
+      localStorage.removeItem('authProvider');
 
       setUser(null);
       setUserRole(null);
@@ -393,10 +479,60 @@ export const AuthProvider = ({ children }) => {
     return userRole === 'user';
   };
 
+  // Handle Google Sign-In
+  const handleGoogleSignIn = async (googleResponse) => {
+    try {
+      setLoading(true);
+
+      // Use Google Auth Service to handle the sign-in (now creates Cognito users)
+      const userData = await googleAuthService.handleGoogleSignIn(googleResponse);
+
+      // Check if user needs email confirmation
+      if (userData.needsConfirmation) {
+        console.log('User needs email confirmation:', userData.message);
+
+        // Return confirmation needed response
+        return {
+          needsConfirmation: true,
+          username: userData.username,
+          message: userData.message,
+          shouldRedirect: false
+        };
+      }
+
+      // Since we're now using Cognito, we don't need separate localStorage for Google users
+      // The regular Cognito session management will handle persistence
+
+      const userRole = userData.attributes['custom:role'] || 'user';
+
+      // Cache the role for future use
+      localStorage.setItem(`petverse_user_role_${userData.username}`, userRole);
+
+      setUser(userData);
+      setUserRole(userRole);
+
+      console.log('Google sign-in successful:', userData.username, 'Role:', userRole);
+
+      // Return user data with navigation info
+      return {
+        ...userData,
+        shouldRedirect: true,
+        redirectPath: userData.attributes['custom:role'] === 'admin' ? '/admin' : '/'
+      };
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value = {
     user,
     userRole,
     loading,
+    setUser,
+    setUserRole,
     signIn: handleSignIn,
     signUp: handleSignUp,
     confirmSignUp: handleConfirmSignUp,
@@ -406,6 +542,7 @@ export const AuthProvider = ({ children }) => {
     changePassword: handleChangePassword,
     updateUserAttributes: handleUpdateUserAttributes,
     getCurrentUser: handleGetCurrentUser,
+    googleSignIn: handleGoogleSignIn,
     isAuthenticated,
     isAdmin,
     isUser,

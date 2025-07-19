@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import CognitoGoogleButton from '../components/CognitoGoogleButton';
+
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -82,6 +84,8 @@ const Login = () => {
             </div>
           )}
 
+
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -148,8 +152,13 @@ const Login = () => {
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Signing in...
+                  <div className="relative mr-3">
+                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs">🐾</span>
+                    </div>
+                  </div>
+                  <span>Signing in...</span>
                 </div>
               ) : (
                 'Sign In'
@@ -167,12 +176,18 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
-                <span className="text-xl mr-2">🔍</span>
-                Google
-              </button>
-           
+            <div className="mt-6">
+              <CognitoGoogleButton
+                text="signin_with"
+                onSuccess={(userData) => {
+                  console.log('✅ Cognito Google sign-in successful:', userData);
+                  // Navigation is handled automatically by the AuthCallback component
+                }}
+                onError={(error) => {
+                  setError('Google sign-in failed. Please try again.');
+                  console.error('❌ Cognito Google sign-in error:', error);
+                }}
+              />
             </div>
           </div>
 
@@ -184,6 +199,8 @@ const Login = () => {
               </Link>
             </p>
           </div>
+
+
         </div>
       </div>
     </div>

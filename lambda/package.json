@@ -1,0 +1,26 @@
+{
+  "name": "petverse-lambda-functions",
+  "version": "1.0.0",
+  "description": "Lambda functions for Petverse product management",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "echo 'No build step required for Lambda'",
+    "test": "echo 'Add tests here'"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "aws",
+    "lambda",
+    "dynamodb",
+    "s3",
+    "petverse"
+  ],
+  "author": "Petverse Team",
+  "license": "MIT"
+} 

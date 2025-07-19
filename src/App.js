@@ -1,14 +1,17 @@
-import React from 'react';
+
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
- import { Amplify } from 'aws-amplify';
- import { AuthProvider } from './contexts/AuthContext';
+import { Amplify } from 'aws-amplify';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { AuthProvider } from './contexts/AuthContext';
+import awsConfig from './aws-config';
 
 import ProtectedRoute, { AdminRoute, UserRoute, RoleBasedRedirect } from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
-import Home from './pages/Home';
+import HomeWithRedirect from './components/HomeWithRedirect';
 import About from './pages/About';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AuthCallback from './components/AuthCallback';
 import AdminDashboard from './pages/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
 import Store from './pages/Store';
@@ -24,7 +27,7 @@ import AdminOrders from './pages/admin/AdminOrders';
 import AdminContent from './pages/admin/AdminContent';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminSettings from './pages/admin/AdminSettings';
-import awsConfig from './aws-config';
+import GoogleOAuthTest from './components/GoogleOAuthTest';
 
 // Configure AWS Amplify
 Amplify.configure(awsConfig);
@@ -38,7 +41,12 @@ const ConditionalNavbar = () => {
 };
 
 function App() {
-  return (
+  // Check if Google Client ID is properly configured
+  const isGoogleConfigured = awsConfig.Google.clientId &&
+    awsConfig.Google.clientId !== 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com' &&
+    awsConfig.Google.clientId !== '123456789-abcdefghijklmnopqrstuvwxyz.apps.googleusercontent.com';
+
+  const AppContent = () => (
     <AuthProvider>
       <Router>
         <div className="min-h-screen bg-gray-50">
@@ -46,12 +54,16 @@ function App() {
           <main>
             <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<Home />} />
+              <Route path="/" element={<HomeWithRedirect />} />
               <Route path="/about" element={<About />} />
               <Route path="/store" element={<Store />} />
               <Route path="/discover" element={<Discover />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+
+              {/* Google OAuth Test Route */}
+              <Route path="/test-google" element={<GoogleOAuthTest />} />
 
               {/* Protected Routes */}
               <Route
@@ -166,6 +178,14 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+  );
+
+  return isGoogleConfigured ? (
+    <GoogleOAuthProvider clientId={awsConfig.Google.clientId}>
+      <AppContent />
+    </GoogleOAuthProvider>
+  ) : (
+    <AppContent />
   );
 }
 
