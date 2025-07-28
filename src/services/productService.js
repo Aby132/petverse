@@ -1,5 +1,4 @@
-// Product Service for PetVerse
-// Uses AWS API Gateway for product CRUD and image uploads
+
 
 class ProductService {
   constructor() {

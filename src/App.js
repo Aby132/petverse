@@ -12,7 +12,7 @@ import About from './pages/About';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import AuthCallback from './components/AuthCallback';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
 import Store from './pages/Store';
 import Discover from './pages/Discover';
@@ -28,6 +28,7 @@ import AdminContent from './pages/admin/AdminContent';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminSettings from './pages/admin/AdminSettings';
 import GoogleOAuthTest from './components/GoogleOAuthTest';
+import NearbyServices from './pages/Discover';
 
 // Configure AWS Amplify
 Amplify.configure(awsConfig);
@@ -129,6 +130,11 @@ function App() {
                     <AdminSettings />
                   </AdminRoute>
                 }
+              />
+            
+              <Route
+                path="/nearby-services"
+                element={<NearbyServices />}
               />
               <Route
                 path="/user-dashboard"

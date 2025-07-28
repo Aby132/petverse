@@ -70,6 +70,12 @@ const AdminLayout = ({ children }) => {
       description: 'Pet Management'
     },
     {
+      title: 'Service Locations',
+      icon: '📍',
+      path: '/admin/locations',
+      description: 'Add/View Pet Service Locations'
+    },
+    {
       title: 'Users',
       icon: '👥',
       path: '/admin/users',
