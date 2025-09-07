@@ -1,26 +1,24 @@
 {
-  "name": "petverse-lambda-functions",
+  "name": "petverse-order-handler",
   "version": "1.0.0",
-  "description": "Lambda functions for Petverse product management",
-  "main": "index.js",
-  "type": "module",
+  "description": "Lambda function for handling PetVerse orders and Razorpay payments",
+  "main": "orderHandler.js",
   "scripts": {
-    "build": "echo 'No build step required for Lambda'",
-    "test": "echo 'Add tests here'"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "package": "zip -r orderHandler.zip ."
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0",
-    "@aws-sdk/client-s3": "^3.0.0"
+    "aws-sdk": "^2.1692.0",
+    "razorpay": "^2.9.2"
   },
   "devDependencies": {},
   "keywords": [
     "aws",
     "lambda",
+    "razorpay",
     "dynamodb",
-    "s3",
-    "petverse"
+    "ecommerce"
   ],
-  "author": "Petverse Team",
+  "author": "PetVerse",
   "license": "MIT"
 } 

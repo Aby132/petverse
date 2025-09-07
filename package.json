@@ -8,6 +8,7 @@
     "@aws-sdk/client-dynamodb": "^3.846.0",
     "@aws-sdk/client-s3": "^3.846.0",
     "@aws-sdk/lib-dynamodb": "^3.846.0",
+    "@heroicons/react": "^2.2.0",
     "@react-google-maps/api": "^2.20.7",
     "@react-oauth/google": "^0.12.2",
     "aws-amplify": "^6.15.3",
@@ -24,7 +25,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "security-check": "node scripts/security-check.js",
+    "pre-commit": "npm run security-check"
   },
   "eslintConfig": {
     "extends": [

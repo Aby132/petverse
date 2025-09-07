@@ -410,7 +410,19 @@ export const AuthProvider = ({ children }) => {
 
   const handleForgotPassword = async (email) => {
     try {
-      await resetPassword({ username: email });
+      const secretHash = generateSecretHash(
+        email,
+        awsConfig.Auth.Cognito.userPoolClientId,
+        awsConfig.Auth.Cognito.userPoolClientSecret
+      );
+
+      const params = {
+        ClientId: awsConfig.Auth.Cognito.userPoolClientId,
+        Username: email,
+        SecretHash: secretHash
+      };
+
+      await cognitoIdentityServiceProvider.forgotPassword(params).promise();
     } catch (error) {
       console.error('Error initiating forgot password:', error);
       throw error;
@@ -419,11 +431,21 @@ export const AuthProvider = ({ children }) => {
 
   const handleForgotPasswordSubmit = async (email, code, newPassword) => {
     try {
-      await confirmResetPassword({
-        username: email,
-        confirmationCode: code,
-        newPassword
-      });
+      const secretHash = generateSecretHash(
+        email,
+        awsConfig.Auth.Cognito.userPoolClientId,
+        awsConfig.Auth.Cognito.userPoolClientSecret
+      );
+
+      const params = {
+        ClientId: awsConfig.Auth.Cognito.userPoolClientId,
+        Username: email,
+        ConfirmationCode: code,
+        Password: newPassword,
+        SecretHash: secretHash
+      };
+
+      await cognitoIdentityServiceProvider.confirmForgotPassword(params).promise();
     } catch (error) {
       console.error('Error resetting password:', error);
       throw error;

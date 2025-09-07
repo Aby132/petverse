@@ -15,6 +15,9 @@ import AuthCallback from './components/AuthCallback';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
 import Store from './pages/Store';
+import Cart from './pages/Cart';
+import ProductDetail from './pages/ProductDetail';
+import Checkout from './pages/Checkout';
 import Discover from './pages/Discover';
 import Chatbot from './pages/Chatbot';
 import Orders from './pages/Orders';
@@ -27,8 +30,7 @@ import AdminOrders from './pages/admin/AdminOrders';
 import AdminContent from './pages/admin/AdminContent';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminSettings from './pages/admin/AdminSettings';
-import GoogleOAuthTest from './components/GoogleOAuthTest';
-import NearbyServices from './pages/Discover';
+
 
 // Configure AWS Amplify
 Amplify.configure(awsConfig);
@@ -58,13 +60,14 @@ function App() {
               <Route path="/" element={<HomeWithRedirect />} />
               <Route path="/about" element={<About />} />
               <Route path="/store" element={<Store />} />
+              <Route path="/cart" element={<Cart />} />
+              <Route path="/product/:productId" element={<ProductDetail />} />
               <Route path="/discover" element={<Discover />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
 
-              {/* Google OAuth Test Route */}
-              <Route path="/test-google" element={<GoogleOAuthTest />} />
+
 
               {/* Protected Routes */}
               <Route
@@ -132,16 +135,21 @@ function App() {
                 }
               />
             
-              <Route
-                path="/nearby-services"
-                element={<NearbyServices />}
-              />
+
               <Route
                 path="/user-dashboard"
                 element={
                   <UserRoute>
                     <UserDashboard />
                   </UserRoute>
+                }
+              />
+              <Route
+                path="/checkout"
+                element={
+                  <ProtectedRoute>
+                    <Checkout />
+                  </ProtectedRoute>
                 }
               />
               <Route

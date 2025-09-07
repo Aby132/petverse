@@ -1,13 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import cartService from '../services/cartService';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const { user, userRole, signOut, loading } = useAuth();
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
+
+  // Load cart count from DynamoDB
+  useEffect(() => {
+    const loadCartCount = async () => {
+      try {
+        const totalItems = await cartService.getCartCount();
+        setCartCount(totalItems);
+      } catch (error) {
+        console.error('Error loading cart count:', error);
+        setCartCount(0);
+      }
+    };
+
+    loadCartCount();
+    
+    // Custom event listener for cart updates
+    window.addEventListener('cartUpdated', loadCartCount);
+    
+    return () => {
+      window.removeEventListener('cartUpdated', loadCartCount);
+    };
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -62,36 +86,54 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2 text-2xl font-display font-bold text-primary-600 hover:text-primary-700 transition-colors">
-            <span className="text-3xl">🐾</span>
-            <span>PetVerse</span>
+          <Link to="/" className="flex items-center space-x-3 text-2xl font-bold text-primary-600 hover:text-primary-700 transition-colors">
+            <span className="text-4xl">🐾</span>
+            <span className="font-display">PetVerse</span>
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+            <Link to="/" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
               Home
             </Link>
-            <Link to="/about" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+            <Link to="/about" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               About Us
             </Link>
-            <Link to="/store" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+            <Link to="/store" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
               Store
             </Link>
-            <Link to="/discover" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+            <Link to="/discover" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
               Discover
+            </Link>
+            <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              AI Assistant
             </Link>
 
             {user ? (
               <>
                 {userRole === 'admin' && (
-                  <Link to="/admin-dashboard" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                  <Link to="/admin-dashboard" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
                     Dashboard
                   </Link>
                 )}
-                <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                  AI Assistant
-                </Link>
 
                 {/* Profile Dropdown */}
                 <div className="relative" ref={dropdownRef}>
@@ -145,18 +187,19 @@ const Navbar = () => {
                         </span>
                       </Link>
 
-                      <Link
-                        to="/favorites"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                        onClick={() => setIsProfileDropdownOpen(false)}
-                      >
-                        <span className="flex items-center">
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                          </svg>
-                          Favorites
-                        </span>
-                      </Link>
+                                             <Link
+                         to="/cart"
+                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                         onClick={() => setIsProfileDropdownOpen(false)}
+                       >
+                         <span className="flex items-center">
+                           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10a2 2 0 001.9-1.37L21 6H5.4M7 13l-2 6h12M7 13l-2-6M9 21a1 1 0 100-2 1 1 0 000 2m8 1a1 1 0 100-2 1 1 0 000 2" />
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 4h4m-2-2v4" />
+                           </svg>
+                           Cart ({cartCount} items)
+                         </span>
+                       </Link>
 
                       <Link
                         to="/settings"
@@ -190,14 +233,9 @@ const Navbar = () => {
                 </div>
               </>
             ) : (
-              <>
-                <Link to="/login" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-                  Login
-                </Link>
-                <Link to="/register" className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                  Register
-                </Link>
-              </>
+              <Link to="/login" className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors">
+                Login / Register
+              </Link>
             )}
           </div>
 
@@ -234,6 +272,9 @@ const Navbar = () => {
               <Link to="/discover" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
                 Discover
               </Link>
+              <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                AI Assistant
+              </Link>
 
               {user ? (
                 <>
@@ -256,10 +297,6 @@ const Navbar = () => {
                     </Link>
                   )}
 
-                  <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
-                    AI Assistant
-                  </Link>
-
                   {userRole === 'user' && (
                     <Link to="/user-dashboard" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
                       Manage Account
@@ -270,9 +307,9 @@ const Navbar = () => {
                     My Orders
                   </Link>
 
-                  <Link to="/favorites" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
-                    Favorites
-                  </Link>
+                                     <Link to="/cart" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                     Cart ({cartCount} items)
+                   </Link>
 
                   <Link to="/settings" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
                     Settings
@@ -286,14 +323,9 @@ const Navbar = () => {
                   </button>
                 </>
               ) : (
-                <>
-                  <Link to="/login" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
-                    Login
-                  </Link>
-                  <Link to="/register" className="bg-primary-600 hover:bg-primary-700 text-white block px-3 py-2 rounded-md text-base font-medium transition-colors">
-                    Register
-                  </Link>
-                </>
+                <Link to="/login" className="bg-primary-600 hover:bg-primary-700 text-white block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                  Login / Register
+                </Link>
               )}
             </div>
           </div>

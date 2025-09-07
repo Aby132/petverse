@@ -1,0 +1,70 @@
+{
+  "test-health-check": {
+    "httpMethod": "GET",
+    "path": "/orders/health",
+    "body": "",
+    "headers": {},
+    "queryStringParameters": null,
+    "pathParameters": null,
+    "isBase64Encoded": false
+  },
+  "test-create-order": {
+    "httpMethod": "POST",
+    "path": "/orders/create",
+    "body": "{\"userId\":\"test-user-123\",\"items\":[{\"productId\":\"prod-001\",\"name\":\"Pet Food\",\"price\":299,\"quantity\":2}],\"deliveryAddress\":{\"name\":\"John Doe\",\"phone\":\"+91 98765 43210\",\"email\":\"john@example.com\",\"addressLine1\":\"123 Test Street\",\"city\":\"Mumbai\",\"state\":\"Maharashtra\",\"pincode\":\"400001\"},\"paymentMethod\":\"razorpay\",\"subtotal\":598,\"shipping\":50,\"total\":648}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "queryStringParameters": null,
+    "pathParameters": null,
+    "isBase64Encoded": false
+  },
+  "test-create-razorpay-order": {
+    "httpMethod": "POST",
+    "path": "/razorpay/create-order",
+    "body": "{\"amount\":64800,\"currency\":\"INR\",\"receipt\":\"ORD-1703123456789-abc123def\",\"notes\":{\"order_id\":\"ORD-1703123456789-abc123def\",\"customer_id\":\"test-user-123\"}}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "queryStringParameters": null,
+    "pathParameters": null,
+    "isBase64Encoded": false
+  },
+  "test-verify-payment": {
+    "httpMethod": "POST",
+    "path": "/razorpay/verify-payment",
+    "body": "{\"razorpay_payment_id\":\"pay_test_123456789\",\"razorpay_order_id\":\"order_test_987654321\",\"razorpay_signature\":\"test_signature_abc123\",\"orderData\":{\"orderId\":\"ORD-1703123456789-abc123def\",\"userId\":\"test-user-123\",\"total\":648}}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "queryStringParameters": null,
+    "pathParameters": null,
+    "isBase64Encoded": false
+  },
+  "test-update-order-status": {
+    "httpMethod": "PUT",
+    "path": "/orders/ORD-1703123456789-abc123def/status",
+    "body": "{\"status\":\"confirmed\",\"paymentDetails\":{\"razorpay_payment_id\":\"pay_test_123456789\",\"razorpay_order_id\":\"order_test_987654321\"},\"updatedAt\":\"2024-01-01T10:00:00.000Z\"}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "queryStringParameters": null,
+    "pathParameters": {
+      "orderId": "ORD-1703123456789-abc123def"
+    },
+    "isBase64Encoded": false
+  },
+  "test-cors-preflight": {
+    "httpMethod": "OPTIONS",
+    "path": "/orders/create",
+    "body": "",
+    "headers": {
+      "Origin": "http://localhost:3000",
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "Content-Type"
+    },
+    "queryStringParameters": null,
+    "pathParameters": null,
+    "isBase64Encoded": false
+  }
+}

@@ -1,6 +1,3 @@
-// AWS Amplify v6 Configuration with Google OAuth
-// Replace these values with your actual AWS Cognito settings
-
 const awsConfig = {
   Auth: {
     Cognito: {
@@ -43,7 +40,6 @@ const awsConfig = {
 
   // Google OAuth Configuration
   Google: {
-
     clientId: '917720505868-jel4tc2q1t6dugquhcsphpqi8dorfujv.apps.googleusercontent.com'
   }
 };
