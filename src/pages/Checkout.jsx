@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from '../components/Footer';
+import Swal from 'sweetalert2';
 
 // Direct API configuration - no services needed
-const API_BASE_URL = 'https://03lk9q7ndb.execute-api.us-east-1.amazonaws.com/prod';
+const API_BASE_URL = 'https://m3hoptm1hi.execute-api.us-east-1.amazonaws.com/prod';
 const USER_API_URL = 'https://rihfgmk2k1.execute-api.us-east-1.amazonaws.com/prod';
 const PRODUCT_API_URL = 'https://ykqbrht440.execute-api.us-east-1.amazonaws.com/prod';
 const RAZORPAY_KEY_ID = 'rzp_test_R79jO6N4F99QLG';
+const RAZORPAY_KEY_SECRET = 'HgKjdH7mCViwebMQTIFmbx7R';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -139,7 +141,25 @@ const Checkout = () => {
       const response = await fetch(`${USER_API_URL}/user/addresses?userId=${user?.username || user?.sub}`);
       if (response.ok) {
         const userAddresses = await response.json();
-        setAddresses(userAddresses);
+        
+        // Ensure only one address is marked as default (backend should handle this, but let's be safe)
+        const addressesWithSingleDefault = userAddresses.map((addr, index) => ({
+          ...addr,
+          isDefault: index === 0 ? true : false // For now, just make the first one default if multiple are marked
+        }));
+        
+        // If multiple addresses are marked as default, fix it
+        const defaultAddresses = userAddresses.filter(addr => addr.isDefault);
+        if (defaultAddresses.length > 1) {
+          // Keep only the first default address, set others to false
+          const fixedAddresses = userAddresses.map((addr, index) => ({
+            ...addr,
+            isDefault: addr.addressId === defaultAddresses[0].addressId
+          }));
+          setAddresses(fixedAddresses);
+        } else {
+          setAddresses(userAddresses);
+        }
         
         const defaultAddress = userAddresses.find(addr => addr.isDefault);
         if (defaultAddress) {
@@ -203,7 +223,12 @@ const Checkout = () => {
       }
     } catch (error) {
       console.error('Error updating address:', error);
-      alert('Failed to update address. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Update Failed',
+        text: 'Failed to update address. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
     } finally {
       setIsAddressUpdating(false);
     }
@@ -220,15 +245,25 @@ const Checkout = () => {
   const handleAddAddress = async (e) => {
     e.preventDefault();
     try {
+      // If setting as default, we need to ensure only one address is default
+      const addressData = { ...addressForm, userId: user?.username || user?.sub };
+      
       const response = await fetch(`${USER_API_URL}/user/addresses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...addressForm, userId: user?.username || user?.sub })
+        body: JSON.stringify(addressData)
       });
       
       if (response.ok) {
         const newAddress = await response.json();
-        await reloadAddresses();
+        
+        // If this address is set as default, reload addresses to update the UI
+        if (addressForm.isDefault) {
+          await reloadAddresses();
+        } else {
+          // Just add the new address to the list
+          setAddresses(prev => [...prev, newAddress]);
+        }
         
         setAddressForm({
           name: '', phone: '', email: '', addressLine1: '', addressLine2: '',
@@ -240,13 +275,27 @@ const Checkout = () => {
       }
     } catch (error) {
       console.error('Error adding address:', error);
-      alert('Failed to add address. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Add Address Failed',
+        text: 'Failed to add address. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
     }
   };
 
   const handleSetDefaultAddress = async (addressId) => {
     try {
       setIsAddressUpdating(true);
+      
+      // Optimistically update the UI to show immediate feedback
+      setAddresses(prev => 
+        prev.map(addr => ({
+          ...addr,
+          isDefault: addr.addressId === addressId
+        }))
+      );
+      
       const response = await fetch(`${USER_API_URL}/user/addresses/default`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -254,20 +303,41 @@ const Checkout = () => {
       });
       
       if (response.ok) {
+        // Reload addresses to ensure consistency with backend
         await reloadAddresses();
       } else {
+        // Revert optimistic update on failure
+        await reloadAddresses();
         throw new Error('Failed to set default address');
       }
     } catch (error) {
       console.error('Error setting default address:', error);
-      alert('Failed to set default address. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Set Default Failed',
+        text: 'Failed to set default address. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
+      // Ensure we reload addresses to get the correct state
+      await reloadAddresses();
     } finally {
       setIsAddressUpdating(false);
     }
   };
 
   const handleDeleteAddress = async (addressId) => {
-    if (!window.confirm('Delete this address permanently?')) return;
+    const result = await Swal.fire({
+      title: 'Delete Address',
+      text: 'Are you sure you want to delete this address permanently?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    });
+    
+    if (!result.isConfirmed) return;
     try {
       setIsAddressUpdating(true);
       const response = await fetch(`${USER_API_URL}/user/addresses`, {
@@ -283,7 +353,12 @@ const Checkout = () => {
       }
     } catch (error) {
       console.error('Error deleting address:', error);
-      alert('Failed to delete address. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Delete Failed',
+        text: 'Failed to delete address. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
     } finally {
       setIsAddressUpdating(false);
     }
@@ -319,7 +394,12 @@ const Checkout = () => {
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress || enrichedCartItems.length === 0) {
-      alert('Please select a delivery address and ensure your cart is not empty.');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Missing Information',
+        text: 'Please select a delivery address and ensure your cart is not empty.',
+        confirmButtonColor: '#3B82F6'
+      });
       return;
     }
 
@@ -345,18 +425,35 @@ const Checkout = () => {
           await loadRazorpayScript();
 
           // Create Razorpay order first
-          const createOrderResponse = await fetch(`${API_BASE_URL}/razorpay/create-order`, {
+          const totalAmount = calculateTotal();
+          console.log('Creating Razorpay order for amount:', totalAmount);
+          
+          let createOrderResponse = await fetch(`${API_BASE_URL}/razorpay/create-order`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              amount: calculateTotal() * 100, // Razorpay expects amount in paise
+              amount: Math.round(totalAmount * 100), // Razorpay expects amount in paise, ensure it's an integer
               currency: 'INR',
               orderData
             })
           });
 
+          // Simple one-time retry on failure
           if (!createOrderResponse.ok) {
-            throw new Error('Failed to create Razorpay order');
+            console.warn('Create Razorpay order failed, retrying once...');
+            createOrderResponse = await fetch(`${API_BASE_URL}/razorpay/create-order`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                amount: Math.round(totalAmount * 100),
+                currency: 'INR',
+                orderData
+              })
+            });
+            if (!createOrderResponse.ok) {
+              const errText = await createOrderResponse.text().catch(() => '');
+              throw new Error(`Failed to create Razorpay order: ${errText || createOrderResponse.status}`);
+            }
           }
 
           const razorpayOrder = await createOrderResponse.json();
@@ -365,7 +462,7 @@ const Checkout = () => {
           // Open Razorpay payment gateway
           const options = {
             key: RAZORPAY_KEY_ID,
-            amount: calculateTotal() * 100,
+            amount: Math.round(totalAmount * 100),
             currency: 'INR',
             name: 'PetVerse',
             description: `Order for ${enrichedCartItems.length} items`,
@@ -390,8 +487,8 @@ const Checkout = () => {
                   throw new Error('Failed to create order in database');
                 }
 
-                const order = await orderResponse.json();
-                console.log('Order created in database:', order);
+                const orderResult = await orderResponse.json();
+                console.log('Order created in database:', orderResult);
 
                 // Verify payment on backend
                 const verifyResponse = await fetch(`${API_BASE_URL}/razorpay/verify-payment`, {
@@ -405,9 +502,16 @@ const Checkout = () => {
                   })
                 });
 
-                if (!verifyResponse.ok) {
-                  console.warn('Payment verification failed, but order was created');
-                }
+                const verificationResult = await verifyResponse.json();
+                console.log('Payment verification:', verificationResult);
+
+                // Show success message
+                await Swal.fire({
+                  icon: 'success',
+                  title: 'Payment Successful!',
+                  text: `Your order #${orderResult.orderId} has been placed successfully. Payment ID: ${response.razorpay_payment_id}`,
+                  confirmButtonColor: '#10B981'
+                });
 
                 // Clear cart
                 localStorage.removeItem('petverse_cart');
@@ -416,17 +520,24 @@ const Checkout = () => {
                 navigate('/order-confirmation', { 
                   state: { 
                     orderSuccess: true,
-                    orderId: order.orderId || `ORD-${Date.now()}`,
+                    orderId: orderResult.orderId,
                     orderData: {
                       ...orderData,
+                      orderId: orderResult.orderId,
                       paymentId: response.razorpay_payment_id,
-                      razorpayOrderId: response.razorpay_order_id
+                      razorpayOrderId: response.razorpay_order_id,
+                      paymentVerified: verificationResult.isSignatureValid
                     }
                   } 
                 });
               } catch (error) {
                 console.error('Error processing successful payment:', error);
-                alert('Payment successful but order creation failed. Please contact support.');
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'Payment Successful',
+                  text: 'Payment successful but order creation failed. Please contact support.',
+                  confirmButtonColor: '#3B82F6'
+                });
               } finally {
                 setIsProcessing(false);
               }
@@ -445,7 +556,12 @@ const Checkout = () => {
           razorpay.open();
         } catch (error) {
           console.error('Razorpay payment error:', error);
-          alert('Failed to initialize payment. Please try again.');
+          Swal.fire({
+            icon: 'error',
+            title: 'Payment Failed',
+            text: (error && error.message) ? error.message : 'Failed to initialize payment. Please try again.',
+            confirmButtonColor: '#3B82F6'
+          });
           setIsProcessing(false);
         }
       } else {
@@ -458,7 +574,15 @@ const Checkout = () => {
           });
 
           if (orderResponse.ok) {
-            const order = await orderResponse.json();
+            const orderResult = await orderResponse.json();
+            
+            // Show success message for COD
+            await Swal.fire({
+              icon: 'success',
+              title: 'Order Placed Successfully!',
+              text: `Your order #${orderResult.orderId} has been placed. You will pay cash on delivery.`,
+              confirmButtonColor: '#10B981'
+            });
             
             // Clear cart
             localStorage.removeItem('petverse_cart');
@@ -466,8 +590,11 @@ const Checkout = () => {
             navigate('/order-confirmation', { 
               state: { 
                 orderSuccess: true,
-                orderId: order.orderId || `ORD-${Date.now()}`,
-                orderData 
+                orderId: orderResult.orderId,
+                orderData: {
+                  ...orderData,
+                  orderId: orderResult.orderId
+                }
               } 
             });
           } else {
@@ -475,14 +602,24 @@ const Checkout = () => {
           }
         } catch (error) {
           console.error('Error creating order:', error);
-          alert('Failed to place order. Please try again.');
+          Swal.fire({
+            icon: 'error',
+            title: 'Order Failed',
+            text: 'Failed to place order. Please try again.',
+            confirmButtonColor: '#3B82F6'
+          });
         } finally {
           setIsProcessing(false);
         }
       }
     } catch (error) {
       console.error('Error placing order:', error);
-      alert('Failed to place order. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Order Failed',
+        text: 'Failed to place order. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
       setIsProcessing(false);
     }
   };
@@ -553,8 +690,8 @@ const Checkout = () => {
                               />
                               <span className="font-medium text-gray-900">{address.name}</span>
                               {address.isDefault && (
-                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                  Default
+                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                                  ✓ Default
                                 </span>
                               )}
                             </div>
@@ -573,8 +710,12 @@ const Checkout = () => {
                               <button
                                 onClick={() => handleSetDefaultAddress(address.addressId)}
                                 disabled={isAddressUpdating}
-                                className={`text-sm px-3 py-1 rounded-md border ${isAddressUpdating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-50 text-blue-700 border-blue-200'}`}
-                                title="Make default"
+                                className={`text-sm px-3 py-1 rounded-md border transition-colors ${
+                                  isAddressUpdating 
+                                    ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200' 
+                                    : 'hover:bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-300'
+                                }`}
+                                title="Make this your default address"
                               >
                                 Set Default
                               </button>
@@ -722,7 +863,14 @@ const Checkout = () => {
                       onChange={handleAddressFormChange}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <label className="ml-2 text-sm text-gray-700">Set as default address</label>
+                    <label className="ml-2 text-sm text-gray-700">
+                      Set as default address
+                      {addresses.length > 0 && (
+                        <span className="text-xs text-gray-500 block">
+                          (This will replace your current default address)
+                        </span>
+                      )}
+                    </label>
                   </div>
                   
                   <div className="flex space-x-3">

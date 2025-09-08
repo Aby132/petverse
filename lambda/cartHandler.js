@@ -71,14 +71,14 @@ async function getCartItems(userId) {
   if (!userId || userId === 'guest') {
     return [];
   }
-
-  const params = {
-    TableName: TABLE_NAME,
-    KeyConditionExpression: 'userId = :userId',
-    ExpressionAttributeValues: {
-      ':userId': userId
-    }
-  };
+    
+    const params = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: 'userId = :userId',
+      ExpressionAttributeValues: {
+        ':userId': userId
+      }
+    };
 
   try {
     const result = await dynamodb.send(new QueryCommand(params));
@@ -139,7 +139,7 @@ async function getCartItem(userId, productId) {
         productId: productId
       }
     };
-    
+
     const result = await dynamodb.send(new QueryCommand({
       TableName: TABLE_NAME,
       KeyConditionExpression: 'userId = :userId AND productId = :productId',
@@ -163,11 +163,11 @@ async function updateCartItem(item) {
     throw new Error('Authentication required to update cart items');
   }
 
-  const params = {
-    TableName: TABLE_NAME,
-    Key: { 
+    const params = {
+          TableName: TABLE_NAME,
+          Key: {
       userId: userId, 
-      productId: item.productId 
+            productId: item.productId
     },
     UpdateExpression: 'SET quantity = :quantity, updatedAt = :updatedAt',
     ExpressionAttributeValues: { 

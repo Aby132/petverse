@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import productService from '../services/productService';
 import cartService from '../services/cartService';
 import { useAuth } from '../contexts/AuthContext';
+import Swal from 'sweetalert2';
 
 // Debounce utility function
 const debounce = (func, wait) => {
@@ -144,7 +145,12 @@ const Store = () => {
       }
       
       // You can add a toast notification here if you have a notification system
-      alert(errorMessage);
+      Swal.fire({
+        icon: 'error',
+        title: 'Cart Update Failed',
+        text: errorMessage,
+        confirmButtonColor: '#3B82F6'
+      });
     } finally {
       // Remove from pending operations
       setPendingOperations(prev => {

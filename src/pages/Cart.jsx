@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import cartService from '../services/cartService';
 import Footer from '../components/Footer';
 import { useAuth } from '../contexts/AuthContext';
+import Swal from 'sweetalert2';
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -131,7 +132,18 @@ const Cart = () => {
   const clearCart = async () => {
     if (updating) return;
     
-    if (!window.confirm('Are you sure you want to clear your cart?')) {
+    const result = await Swal.fire({
+      title: 'Clear Cart',
+      text: 'Are you sure you want to clear your cart?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, clear it!',
+      cancelButtonText: 'Cancel'
+    });
+    
+    if (!result.isConfirmed) {
       return;
     }
     
@@ -174,19 +186,8 @@ const Cart = () => {
 
   // Helper function to get product image URL
   const getProductImageUrl = (item) => {
-    // Debug: Log the item structure to see what image data is available
-    console.log('🖼️ Cart item image data:', {
-      productId: item.productId,
-      name: item.name,
-      imageUrl: item.imageUrl,
-      images: item.images,
-      image: item.image,
-      fullItem: item
-    });
-    
     // Try different possible image URL properties
     if (item.imageUrl) {
-      console.log('✅ Using imageUrl:', item.imageUrl);
       return item.imageUrl;
     }
     
@@ -194,17 +195,14 @@ const Cart = () => {
       // Handle both string URLs and objects with imageUrl property
       const firstImage = item.images[0];
       const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.imageUrl;
-      console.log('✅ Using images array:', imageUrl);
       return imageUrl;
     }
     
     if (item.image) {
-      console.log('✅ Using image:', item.image);
       return item.image;
     }
     
     // Fallback to placeholder
-    console.log('❌ No image found, using placeholder');
     return 'https://placehold.co/100x100?text=No%20Image';
   };
 
@@ -291,16 +289,6 @@ const Cart = () => {
             <div className="lg:col-span-2 space-y-4">
               {cartItems.map((item) => (
                 <div key={item.productId} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  {/* Debug info - remove this after fixing */}
-                  <div className="mb-2 p-2 bg-gray-100 rounded text-xs">
-                    <strong>Debug:</strong> {JSON.stringify({
-                      productId: item.productId,
-                      name: item.name,
-                      imageUrl: item.imageUrl,
-                      hasImages: !!item.images,
-                      imagesLength: item.images?.length || 0
-                    })}
-                  </div>
                   <div className="flex items-center space-x-4">
                     {/* Product Image */}
                     <div className="flex-shrink-0">

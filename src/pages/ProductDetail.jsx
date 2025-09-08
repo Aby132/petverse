@@ -4,6 +4,7 @@ import productService from '../services/productService';
 import cartService from '../services/cartService';
 import Footer from '../components/Footer';
 import { useAuth } from '../contexts/AuthContext';
+import Swal from 'sweetalert2';
 
 const ProductDetail = () => {
   const { productId } = useParams();
@@ -186,7 +187,12 @@ const ProductDetail = () => {
       }
     } catch (error) {
       console.error('Error toggling cart:', error);
-      alert('Failed to update cart. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Cart Update Failed',
+        text: 'Failed to update cart. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
     } finally {
       setIsOperationPending(false);
     }
@@ -201,7 +207,12 @@ const ProductDetail = () => {
 
     // TODO: Implement buy now functionality
     console.log(`Buying ${quantity} of ${product.name}`);
-    alert(`Proceeding to checkout with ${quantity} ${product.name}!`);
+    Swal.fire({
+      icon: 'info',
+      title: 'Buy Now',
+      text: `Proceeding to checkout with ${quantity} ${product.name}!`,
+      confirmButtonColor: '#3B82F6'
+    });
   };
 
   if (loading) {

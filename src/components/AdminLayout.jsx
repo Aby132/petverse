@@ -69,12 +69,7 @@ const AdminLayout = ({ children }) => {
       path: '/admin/animals',
       description: 'Pet Management'
     },
-    {
-      title: 'Service Locations',
-      icon: '📍',
-      path: '/admin/locations',
-      description: 'Add/View Pet Service Locations'
-    },
+   
     {
       title: 'Users',
       icon: '👥',
@@ -167,10 +162,10 @@ const AdminLayout = ({ children }) => {
               >
                 <span className="text-xl flex-shrink-0">{item.icon}</span>
                 {(isSidebarOpen || !isMobile) && (
-                  <div className="ml-3 flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.title}</p>
-                    <p className="text-xs text-gray-500 group-hover:text-gray-600 truncate">{item.description}</p>
-                  </div>
+                  <span className="ml-3 flex-1 min-w-0 flex flex-col">
+                    <span className="text-sm font-medium truncate">{item.title}</span>
+                    <span className="text-xs text-gray-500 group-hover:text-gray-600 truncate">{item.description}</span>
+                  </span>
                 )}
               </Link>
             );

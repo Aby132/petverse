@@ -21,6 +21,7 @@ import Checkout from './pages/Checkout';
 import Discover from './pages/Discover';
 import Chatbot from './pages/Chatbot';
 import Orders from './pages/Orders';
+import OrderConfirmation from './pages/OrderConfirmation';
 import Favorites from './pages/Favorites';
 import Settings from './pages/Settings';
 import AdminProducts from './pages/admin/AdminProducts';
@@ -157,6 +158,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Chatbot />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/order-confirmation"
+                element={
+                  <ProtectedRoute>
+                    <OrderConfirmation />
                   </ProtectedRoute>
                 }
               />

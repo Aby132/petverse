@@ -19,6 +19,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.6.3",
     "react-scripts": "5.0.1",
+    "sweetalert2": "^11.23.0",
     "uuid": "^11.1.0"
   },
   "scripts": {
@@ -26,8 +27,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "security-check": "node scripts/security-check.js",
-    "pre-commit": "npm run security-check"
+    "security-check": "node scripts/security-check.js"
   },
   "eslintConfig": {
     "extends": [

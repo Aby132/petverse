@@ -1,5 +1,4 @@
-// Cart Service for PetVerse
-// Direct API configuration - no imports needed
+
 
 const API_BASE_URL = 'https://v1o5fpndre.execute-api.us-east-1.amazonaws.com/prod';
 
@@ -69,19 +68,19 @@ class CartService {
   }
 
   async fetchCartFromBackend(userId) {
-    const headers = this.getHeaders();
-    const response = await fetch(`${this.baseURL}?userId=${userId}`, {
-      method: 'GET',
-      headers
-    });
+      const headers = this.getHeaders();
+      const response = await fetch(`${this.baseURL}?userId=${userId}`, {
+        method: 'GET',
+        headers
+      });
 
-    if (response.ok) {
-      const cartItems = await response.json();
-      this.updateLocalStorage(cartItems);
+      if (response.ok) {
+        const cartItems = await response.json();
+        this.updateLocalStorage(cartItems);
       this.dispatchCartUpdate(cartItems);
-      return cartItems;
-    } else {
-      console.warn('Backend cart fetch failed, using local storage');
+        return cartItems;
+      } else {
+        console.warn('Backend cart fetch failed, using local storage');
       const localCart = this.getCartFromLocalStorage();
       this.dispatchCartUpdate(localCart);
       return localCart;
@@ -193,22 +192,22 @@ class CartService {
   }
 
   async syncAddToCartWithBackend(cartItem, optimisticResult) {
-    try {
-      const headers = this.getHeaders();
+      try {
+        const headers = this.getHeaders();
       const response = await fetch(`${this.baseURL}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(cartItem)
-      });
+          method: 'POST',
+          headers,
+          body: JSON.stringify(cartItem)
+        });
 
-      if (response.ok) {
+        if (response.ok) {
         console.log('✅ Item synced to backend');
         // Invalidate cache to force refresh on next request
         this.invalidateCache(cartItem.userId);
       } else {
         console.warn('❌ Backend sync failed, keeping local changes');
-      }
-    } catch (error) {
+        }
+      } catch (error) {
       console.warn('❌ Backend sync failed:', error);
     }
   }
@@ -244,22 +243,22 @@ class CartService {
   }
 
   applyOptimisticUpdate(productId, quantity) {
-    const currentCart = this.getCartFromLocalStorage();
-    const item = currentCart.find(item => item.productId === productId);
-    
+      const currentCart = this.getCartFromLocalStorage();
+      const item = currentCart.find(item => item.productId === productId);
+      
     if (!item) {
       return { success: false, error: 'Item not found in cart' };
     }
 
-    if (quantity <= 0) {
+        if (quantity <= 0) {
       // Remove item optimistically
       const filteredCart = currentCart.filter(item => item.productId !== productId);
       this.updateLocalStorage(filteredCart);
       return { success: true, cart: filteredCart, action: 'remove' };
-    }
-    
-    item.quantity = quantity;
-    this.updateLocalStorage(currentCart);
+        }
+        
+        item.quantity = quantity;
+        this.updateLocalStorage(currentCart);
     return { success: true, cart: currentCart, action: 'update' };
   }
 
@@ -283,11 +282,11 @@ class CartService {
   async syncUpdateWithBackend(productId, quantity, userId) {
     if (!userId) return;
 
-    try {
-      const headers = this.getHeaders();
+        try {
+          const headers = this.getHeaders();
       const response = await fetch(`${this.baseURL}`, {
-        method: 'PUT',
-        headers,
+            method: 'PUT',
+            headers,
         body: JSON.stringify({ 
           productId, 
           quantity, 
@@ -301,7 +300,7 @@ class CartService {
       } else {
         console.warn('❌ Backend update failed:', response.status);
       }
-    } catch (error) {
+        } catch (error) {
       console.warn('❌ Backend sync failed:', error);
     }
   }
@@ -332,18 +331,18 @@ class CartService {
   }
 
   applyOptimisticRemove(productId) {
-    const currentCart = this.getCartFromLocalStorage();
-    const filteredCart = currentCart.filter(item => item.productId !== productId);
-    this.updateLocalStorage(filteredCart);
+      const currentCart = this.getCartFromLocalStorage();
+      const filteredCart = currentCart.filter(item => item.productId !== productId);
+      this.updateLocalStorage(filteredCart);
     return { cart: filteredCart };
   }
 
   async syncRemoveWithBackend(productId, userId) {
-    try {
-      const headers = this.getHeaders();
+      try {
+        const headers = this.getHeaders();
       const response = await fetch(`${this.baseURL}`, {
-        method: 'DELETE',
-        headers,
+          method: 'DELETE',
+          headers,
         body: JSON.stringify({ 
           productId, 
           userId 
@@ -373,26 +372,26 @@ class CartService {
 
       // Try to sync with backend - clear all items for user
       if (currentUserId) {
-        try {
+      try {
           // Get all cart items first
           const cartItems = await this.getCartItems(currentUserId);
           
           // Remove each item from backend
           for (const item of cartItems) {
-            const headers = this.getHeaders();
+        const headers = this.getHeaders();
             await fetch(`${this.baseURL}`, {
-              method: 'DELETE',
-              headers,
+          method: 'DELETE',
+          headers,
               body: JSON.stringify({ 
                 productId: item.productId, 
                 userId: currentUserId 
               })
-            });
+        });
           }
           
           console.log('Cart cleared on backend');
-        } catch (error) {
-          console.warn('Backend sync failed:', error);
+      } catch (error) {
+        console.warn('Backend sync failed:', error);
         }
       }
 
