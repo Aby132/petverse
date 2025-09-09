@@ -8,8 +8,8 @@ import Swal from 'sweetalert2';
 const API_BASE_URL = 'https://m3hoptm1hi.execute-api.us-east-1.amazonaws.com/prod';
 const USER_API_URL = 'https://rihfgmk2k1.execute-api.us-east-1.amazonaws.com/prod';
 const PRODUCT_API_URL = 'https://ykqbrht440.execute-api.us-east-1.amazonaws.com/prod';
-const RAZORPAY_KEY_ID = 'rzp_test_R79jO6N4F99QLG';
-const RAZORPAY_KEY_SECRET = 'HgKjdH7mCViwebMQTIFmbx7R';
+const RAZORPAY_KEY_ID = process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_R79jO6N4F99QLG';
+// Do not expose secrets in frontend code. Only public key is needed here.
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -836,7 +836,7 @@ const Checkout = () => {
                       <input
                         type="text"
                         name="state"
-                        value={addressForm.city}
+                        value={addressForm.state}
                         onChange={handleAddressFormChange}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

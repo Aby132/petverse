@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import CognitoGoogleButton from '../components/CognitoGoogleButton';
+import userService from '../services/userService';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -20,11 +21,156 @@ const Register = () => {
     hasLowercase: false,
     minLength: false
   });
+  const [fieldValidation, setFieldValidation] = useState({
+    firstName: { isValid: false, message: '', touched: false },
+    lastName: { isValid: false, message: '', touched: false },
+    email: { isValid: false, message: '', touched: false, checking: false },
+    password: { isValid: false, message: '', touched: false },
+    confirmPassword: { isValid: false, message: '', touched: false }
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState('');
+
+  // Email validation cache to avoid repeated API calls
+  const [emailCache, setEmailCache] = useState(new Map());
+
+  // Clean up cache periodically to prevent memory leaks
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      setEmailCache(new Map()); // Clear cache every 5 minutes
+    }, 300000); // 5 minutes
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
+
+  // Optimized debounced email check with caching
+  const debouncedEmailCheck = useCallback(
+    debounce(async (email) => {
+      if (!email || !email.includes('@')) {
+        setFieldValidation(prev => ({
+          ...prev,
+          email: { ...prev.email, checking: false, isValid: false, message: 'Please enter a valid email address' }
+        }));
+        return;
+      }
+
+      // Check cache first
+      if (emailCache.has(email)) {
+        const cachedResult = emailCache.get(email);
+        setFieldValidation(prev => ({
+          ...prev,
+          email: {
+            ...prev.email,
+            checking: false,
+            isValid: !cachedResult.exists,
+            message: cachedResult.exists ? 'Email already exists' : 'Email is available'
+          }
+        }));
+        return;
+      }
+
+      setFieldValidation(prev => ({
+        ...prev,
+        email: { ...prev.email, checking: true }
+      }));
+
+      try {
+        const result = await userService.checkEmailExists(email);
+        
+        // Cache the result for 5 minutes
+        setEmailCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(email, result);
+          return newCache;
+        });
+
+        setFieldValidation(prev => ({
+          ...prev,
+          email: {
+            ...prev.email,
+            checking: false,
+            isValid: !result.exists,
+            message: result.exists ? 'Email already exists' : 'Email is available'
+          }
+        }));
+      } catch (error) {
+        setFieldValidation(prev => ({
+          ...prev,
+          email: {
+            ...prev.email,
+            checking: false,
+            isValid: false,
+            message: 'Unable to verify email availability'
+          }
+        }));
+      }
+    }, 300), // Reduced debounce time from 500ms to 300ms
+    [emailCache]
+  );
+
+  // Debounce utility function
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  // Field validation functions
+  const validateFirstName = (firstName) => {
+    if (!firstName.trim()) {
+      return { isValid: false, message: 'First name is required' };
+    }
+    if (firstName.trim().length < 2) {
+      return { isValid: false, message: 'First name must be at least 2 characters' };
+    }
+    if (!/^[a-zA-Z\s]+$/.test(firstName.trim())) {
+      return { isValid: false, message: 'First name can only contain letters and spaces' };
+    }
+    return { isValid: true, message: 'First name looks good' };
+  };
+
+  const validateLastName = (lastName) => {
+    if (!lastName.trim()) {
+      return { isValid: false, message: 'Last name is required' };
+    }
+    if (lastName.trim().length < 2) {
+      return { isValid: false, message: 'Last name must be at least 2 characters' };
+    }
+    if (!/^[a-zA-Z\s]+$/.test(lastName.trim())) {
+      return { isValid: false, message: 'Last name can only contain letters and spaces' };
+    }
+    return { isValid: true, message: 'Last name looks good' };
+  };
+
+  const validateEmail = (email) => {
+    if (!email.trim()) {
+      return { isValid: false, message: 'Email is required' };
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return { isValid: false, message: 'Please enter a valid email address' };
+    }
+    return { isValid: true, message: 'Email format is valid' };
+  };
+
+  const validateConfirmPassword = (confirmPassword, password) => {
+    if (!confirmPassword) {
+      return { isValid: false, message: 'Please confirm your password' };
+    }
+    if (confirmPassword !== password) {
+      return { isValid: false, message: 'Passwords do not match' };
+    }
+    return { isValid: true, message: 'Passwords match' };
+  };
 
   // Password validation function
   const validatePassword = (password) => {
@@ -36,11 +182,39 @@ const Register = () => {
       minLength: password.length >= 8
     };
     setPasswordValidation(validation);
-    return Object.values(validation).every(Boolean);
+    
+    const isValid = Object.values(validation).every(Boolean);
+    const message = isValid ? 'Password meets all requirements' : 'Password does not meet all requirements';
+    
+    setFieldValidation(prev => ({
+      ...prev,
+      password: { ...prev.password, isValid, message }
+    }));
+    
+    return isValid;
   };
 
   const { signUp, confirmSignUp } = useAuth();
   const navigate = useNavigate();
+
+  // Helper component for field validation display
+  const FieldValidationMessage = ({ field, showIcon = true }) => {
+    if (!field.touched || !field.message) return null;
+    
+    const isError = !field.isValid;
+    const isChecking = field.checking;
+    
+    return (
+      <div className={`mt-1 text-sm flex items-center ${isError ? 'text-red-600' : 'text-green-600'}`}>
+        {showIcon && (
+          <span className="mr-1">
+            {isChecking ? '⏳' : isError ? '❌' : '✅'}
+          </span>
+        )}
+        <span>{field.message}</span>
+      </div>
+    );
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -49,9 +223,65 @@ const Register = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
 
-    // Validate password on change
-    if (name === 'password') {
-      validatePassword(value);
+    // Mark field as touched
+    setFieldValidation(prev => ({
+      ...prev,
+      [name]: { ...prev[name], touched: true }
+    }));
+
+    // Real-time validation for each field
+    switch (name) {
+      case 'firstName':
+        const firstNameValidation = validateFirstName(value);
+        setFieldValidation(prev => ({
+          ...prev,
+          firstName: { ...prev.firstName, ...firstNameValidation, touched: true }
+        }));
+        break;
+
+      case 'lastName':
+        const lastNameValidation = validateLastName(value);
+        setFieldValidation(prev => ({
+          ...prev,
+          lastName: { ...prev.lastName, ...lastNameValidation, touched: true }
+        }));
+        break;
+
+      case 'email':
+        const emailValidation = validateEmail(value);
+        setFieldValidation(prev => ({
+          ...prev,
+          email: { ...prev.email, ...emailValidation, touched: true }
+        }));
+        
+        // Debounced email existence check
+        if (emailValidation.isValid) {
+          debouncedEmailCheck(value);
+        }
+        break;
+
+      case 'password':
+        validatePassword(value);
+        // Also validate confirm password if it has a value
+        if (formData.confirmPassword) {
+          const confirmPasswordValidation = validateConfirmPassword(formData.confirmPassword, value);
+          setFieldValidation(prev => ({
+            ...prev,
+            confirmPassword: { ...prev.confirmPassword, ...confirmPasswordValidation, touched: true }
+          }));
+        }
+        break;
+
+      case 'confirmPassword':
+        const confirmPasswordValidation = validateConfirmPassword(value, formData.password);
+        setFieldValidation(prev => ({
+          ...prev,
+          confirmPassword: { ...prev.confirmPassword, ...confirmPasswordValidation, touched: true }
+        }));
+        break;
+
+      default:
+        break;
     }
   };
 
@@ -60,8 +290,20 @@ const Register = () => {
     setError('');
     setSuccess('');
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match!');
+    // Mark all fields as touched for validation display
+    setFieldValidation(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(key => {
+        updated[key] = { ...updated[key], touched: true };
+      });
+      return updated;
+    });
+
+    // Check if all fields are valid
+    const allFieldsValid = Object.values(fieldValidation).every(field => field.isValid);
+    
+    if (!allFieldsValid) {
+      setError('Please fix all validation errors before submitting.');
       return;
     }
 
@@ -70,15 +312,35 @@ const Register = () => {
       return;
     }
 
-    // Validate password requirements
-    if (!validatePassword(formData.password)) {
-      setError('Password does not meet all requirements. Please check the password criteria below.');
+    // Double-check email availability
+    if (fieldValidation.email.checking) {
+      setError('Please wait for email verification to complete.');
+      return;
+    }
+
+    if (!fieldValidation.email.isValid) {
+      setError('Email is not available or invalid. Please choose a different email.');
       return;
     }
 
     setIsLoading(true);
 
     try {
+      // Final check: Verify email is still available before registration
+      // Use cache if available, otherwise make API call
+      let finalEmailCheck;
+      if (emailCache.has(formData.email)) {
+        finalEmailCheck = emailCache.get(formData.email);
+      } else {
+        finalEmailCheck = await userService.checkEmailExists(formData.email);
+      }
+      
+      if (finalEmailCheck.exists) {
+        setError('Email is no longer available. Please choose a different email address.');
+        setIsLoading(false);
+        return;
+      }
+
       await signUp(formData.email, formData.password, {
         'given_name': formData.firstName,
         'family_name': formData.lastName,
@@ -118,7 +380,7 @@ const Register = () => {
   const getErrorMessage = (error) => {
     switch (error.code) {
       case 'UsernameExistsException':
-        return 'An account with this email already exists.';
+        return 'An account with this email already exists. Please use a different email or try signing in.';
       case 'InvalidPasswordException':
         return 'Password must be at least 8 characters and contain uppercase, lowercase, numbers, and special characters.';
       case 'InvalidParameterException':
@@ -127,7 +389,15 @@ const Register = () => {
         return 'Invalid confirmation code. Please try again.';
       case 'ExpiredCodeException':
         return 'Confirmation code has expired. Please request a new one.';
+      case 'AliasExistsException':
+        return 'An account with this email already exists. Please use a different email.';
+      case 'InvalidEmailAddressException':
+        return 'Please enter a valid email address.';
       default:
+        // Check if the error message contains common Cognito error patterns
+        if (error.message && error.message.includes('already exists')) {
+          return 'An account with this email already exists. Please use a different email or try signing in.';
+        }
         return error.message || 'An error occurred during registration. Please try again.';
     }
   };
@@ -222,9 +492,16 @@ const Register = () => {
                   value={formData.firstName}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors ${
+                    fieldValidation.firstName.touched 
+                      ? fieldValidation.firstName.isValid 
+                        ? 'border-green-500 bg-green-50' 
+                        : 'border-red-500 bg-red-50'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="John"
                 />
+                <FieldValidationMessage field={fieldValidation.firstName} />
               </div>
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -237,9 +514,16 @@ const Register = () => {
                   value={formData.lastName}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors ${
+                    fieldValidation.lastName.touched 
+                      ? fieldValidation.lastName.isValid 
+                        ? 'border-green-500 bg-green-50' 
+                        : 'border-red-500 bg-red-50'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="Doe"
                 />
+                <FieldValidationMessage field={fieldValidation.lastName} />
               </div>
             </div>
 
@@ -256,13 +540,24 @@ const Register = () => {
                   onChange={handleChange}
                   required
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors disabled:bg-gray-100"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors disabled:bg-gray-100 ${
+                    fieldValidation.email.touched 
+                      ? fieldValidation.email.isValid 
+                        ? 'border-green-500 bg-green-50' 
+                        : 'border-red-500 bg-red-50'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="john@example.com"
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <span className="text-gray-400">📧</span>
+                  {fieldValidation.email.checking ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-transparent"></div>
+                  ) : (
+                    <span className="text-gray-400">📧</span>
+                  )}
                 </div>
               </div>
+              <FieldValidationMessage field={fieldValidation.email} />
             </div>
 
 
@@ -280,13 +575,20 @@ const Register = () => {
                   onChange={handleChange}
                   required
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors disabled:bg-gray-100"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors disabled:bg-gray-100 ${
+                    fieldValidation.password.touched 
+                      ? fieldValidation.password.isValid 
+                        ? 'border-green-500 bg-green-50' 
+                        : 'border-red-500 bg-red-50'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="Create a strong password"
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <span className="text-gray-400"></span>
+                  <span className="text-gray-400">🔒</span>
                 </div>
               </div>
+              <FieldValidationMessage field={fieldValidation.password} />
 
               {/* Password Requirements */}
               {formData.password && (
@@ -331,13 +633,20 @@ const Register = () => {
                   onChange={handleChange}
                   required
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors disabled:bg-gray-100"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 transition-colors disabled:bg-gray-100 ${
+                    fieldValidation.confirmPassword.touched 
+                      ? fieldValidation.confirmPassword.isValid 
+                        ? 'border-green-500 bg-green-50' 
+                        : 'border-red-500 bg-red-50'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="Confirm your password"
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <span className="text-gray-400"></span>
+                  <span className="text-gray-400">🔒</span>
                 </div>
               </div>
+              <FieldValidationMessage field={fieldValidation.confirmPassword} />
             </div>
 
             <div className="flex items-center">
@@ -363,7 +672,7 @@ const Register = () => {
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !Object.values(fieldValidation).every(field => field.isValid) || fieldValidation.email.checking || !formData.agreeToTerms}
               className="w-full bg-secondary-600 hover:bg-secondary-700 disabled:bg-secondary-400 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed"
             >
               {isLoading ? (

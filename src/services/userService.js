@@ -1,18 +1,18 @@
-import config from '../config/environment.js';
+import awsConfig from '../aws-config';
 
 class UserService {
   constructor() {
     // Using hardcoded REST API base URL as requested
     this.baseURL = 'https://rihfgmk2k1.execute-api.us-east-1.amazonaws.com/prod';
     this.cache = new Map();
-    this.cacheTimeout = config.features.cacheTimeout;
+    this.cacheTimeout = 300000; // 5 minutes cache timeout
   }
 
   // Get current user ID from localStorage or Cognito
   getCurrentUserId() {
     try {
       // Try to get from Cognito first (for authenticated users)
-      const clientId = config.aws.cognito.clientId;
+      const clientId = awsConfig.Auth.Cognito.userPoolClientId;
       const lastAuthUser = localStorage.getItem(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`);
       
       if (lastAuthUser) {
@@ -31,7 +31,7 @@ class UserService {
   // Get authentication token if available
   getAuthToken() {
     try {
-      const clientId = config.aws.cognito.clientId;
+      const clientId = awsConfig.Auth.Cognito.userPoolClientId;
       const lastAuthUser = localStorage.getItem(`CognitoIdentityServiceProvider.${clientId}.LastAuthUser`);
       
       if (lastAuthUser) {
@@ -314,6 +314,63 @@ class UserService {
     } catch (error) {
       console.error('Error setting default address:', error);
       throw error;
+    }
+  }
+
+  // Check if email already exists in Cognito using optimized endpoint
+  async checkEmailExists(email) {
+    try {
+      if (!email || !email.includes('@')) {
+        return { exists: false, message: 'Invalid email format' };
+      }
+
+      // Use the AdminUsers API URL with a dedicated email check endpoint
+      const adminApiUrl = 'https://zgjffueud8.execute-api.us-east-1.amazonaws.com/prod';
+      
+      // Try the optimized email check endpoint first
+      try {
+        const response = await fetch(`${adminApiUrl}/admin/users/check-email?email=${encodeURIComponent(email)}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          return {
+            email,
+            exists: result.exists,
+            message: result.exists ? 'Email already exists in our system' : 'Email is available'
+          };
+        }
+      } catch (optimizedError) {
+        console.warn('Optimized email check failed, falling back to full user list:', optimizedError.message);
+      }
+
+      // Fallback: Use the full users endpoint (slower but reliable)
+      const response = await fetch(`${adminApiUrl}/admin/users`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+      
+      const users = await response.json();
+      
+      // Check if email exists in the users list
+      const emailExists = users.some(user => 
+        user.email === email || user.username === email
+      );
+      
+      return {
+        email,
+        exists: emailExists,
+        message: emailExists ? 'Email already exists in our system' : 'Email is available'
+      };
+    } catch (error) {
+      console.error('Error checking email existence:', error);
+      return { exists: false, message: 'Unable to verify email availability' };
     }
   }
 

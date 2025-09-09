@@ -1,5 +1,6 @@
 
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import React, { Suspense, lazy } from 'react';
 import { Amplify } from 'aws-amplify';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './contexts/AuthContext';
@@ -8,29 +9,29 @@ import awsConfig from './aws-config';
 import ProtectedRoute, { AdminRoute, UserRoute, RoleBasedRedirect } from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import HomeWithRedirect from './components/HomeWithRedirect';
-import About from './pages/About';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import AuthCallback from './components/AuthCallback';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import UserDashboard from './pages/UserDashboard';
-import Store from './pages/Store';
-import Cart from './pages/Cart';
-import ProductDetail from './pages/ProductDetail';
-import Checkout from './pages/Checkout';
-import Discover from './pages/Discover';
-import Chatbot from './pages/Chatbot';
-import Orders from './pages/Orders';
-import OrderConfirmation from './pages/OrderConfirmation';
-import Favorites from './pages/Favorites';
-import Settings from './pages/Settings';
-import AdminProducts from './pages/admin/AdminProducts';
-import AdminAnimals from './pages/admin/AdminAnimals';
-import AdminUsers from './pages/admin/AdminUsers';
-import AdminOrders from './pages/admin/AdminOrders';
-import AdminContent from './pages/admin/AdminContent';
-import AdminAnalytics from './pages/admin/AdminAnalytics';
-import AdminSettings from './pages/admin/AdminSettings';
+const About = lazy(() => import('./pages/About'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const AuthCallback = lazy(() => import('./components/AuthCallback'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const UserDashboard = lazy(() => import('./pages/UserDashboard'));
+const Store = lazy(() => import('./pages/Store'));
+const Cart = lazy(() => import('./pages/Cart'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Discover = lazy(() => import('./pages/Discover'));
+const Chatbot = lazy(() => import('./pages/Chatbot'));
+const Orders = lazy(() => import('./pages/Orders'));
+const OrderConfirmation = lazy(() => import('./pages/OrderConfirmation'));
+const Favorites = lazy(() => import('./pages/Favorites'));
+const Settings = lazy(() => import('./pages/Settings'));
+const AdminProducts = lazy(() => import('./pages/admin/AdminProducts'));
+const AdminAnimals = lazy(() => import('./pages/admin/AdminAnimals'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
+const AdminContent = lazy(() => import('./pages/admin/AdminContent'));
+const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 
 
 // Configure AWS Amplify
@@ -56,6 +57,7 @@ function App() {
         <div className="min-h-screen bg-gray-50">
           <ConditionalNavbar />
           <main>
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<HomeWithRedirect />} />
@@ -197,6 +199,7 @@ function App() {
               {/* Role-based redirect route */}
               <Route path="/dashboard" element={<RoleBasedRedirect />} />
             </Routes>
+            </Suspense>
           </main>
         </div>
       </Router>
