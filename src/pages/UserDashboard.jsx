@@ -32,10 +32,23 @@ const UserDashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-display font-bold text-gray-900 mb-2">
-            Welcome back, {user.name}! 👋
-          </h1>
-          <p className="text-gray-600">Here's what's happening with your pets and orders today.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-display font-bold text-gray-900 mb-2">
+                Welcome back, {user.name}! 👋
+              </h1>
+              <p className="text-gray-600">Here's what's happening with your pets and orders today.</p>
+            </div>
+            <div className="mt-4 sm:mt-0">
+              <Link
+                to="/admin/community"
+                className="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <span className="mr-2">🏘️</span>
+                Join Communities
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -163,6 +176,10 @@ const UserDashboard = () => {
                   <Link to="/store" className="flex items-center p-3 bg-secondary-50 hover:bg-secondary-100 rounded-lg transition-colors">
                     <span className="text-2xl mr-3">🛒</span>
                     <span className="font-medium text-gray-900">Shop Products</span>
+                  </Link>
+                  <Link to="/admin/community" className="flex items-center p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors">
+                    <span className="text-2xl mr-3">🏘️</span>
+                    <span className="font-medium text-gray-900">Join Communities</span>
                   </Link>
                   <button className="flex items-center w-full p-3 bg-accent-50 hover:bg-accent-100 rounded-lg transition-colors">
                     <span className="text-2xl mr-3">📅</span>

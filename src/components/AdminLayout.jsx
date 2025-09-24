@@ -89,6 +89,12 @@ const AdminLayout = ({ children }) => {
       description: 'CMS & Blog'
     },
     {
+      title: 'Communities',
+      icon: '🏘️',
+      path: '/communities',
+      description: 'Community Management'
+    },
+    {
       title: 'Analytics',
       icon: '📈',
       path: '/admin/analytics',

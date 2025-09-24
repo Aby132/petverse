@@ -30,8 +30,10 @@ const AdminAnimals = lazy(() => import('./pages/admin/AdminAnimals'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
 const AdminContent = lazy(() => import('./pages/admin/AdminContent'));
+const AdminCommunity = lazy(() => import('./pages/admin/AdminCommunity'));
 const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const Community = lazy(() => import('./pages/Community'));
 
 
 // Configure AWS Amplify
@@ -40,9 +42,13 @@ Amplify.configure(awsConfig);
 // Component to conditionally render Navbar
 const ConditionalNavbar = () => {
   const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith('/admin');
+  const path = location.pathname;
+  const isUserCommunityPage = path.startsWith('/admin/community');
+  const isOtherAdminPage = path.startsWith('/admin') && !isUserCommunityPage;
+  const isAdminCommunitiesShortPath = path.startsWith('/communities');
+  const hideNavbar = isOtherAdminPage || isAdminCommunitiesShortPath;
 
-  return !isAdminRoute ? <Navbar /> : null;
+  return hideNavbar ? null : <Navbar />;
 };
 
 function App() {
@@ -122,6 +128,14 @@ function App() {
                 }
               />
               <Route
+                path="/admin/communities"
+                element={
+                  <AdminRoute>
+                    <AdminCommunity />
+                  </AdminRoute>
+                }
+              />
+              <Route
                 path="/admin/analytics"
                 element={
                   <AdminRoute>
@@ -193,6 +207,22 @@ function App() {
                   <ProtectedRoute>
                     <Settings />
                   </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/community"
+                element={
+                  <ProtectedRoute>
+                    <Community />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/communities"
+                element={
+                  <AdminRoute>
+                    <AdminCommunity />
+                  </AdminRoute>
                 }
               />
 

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.10",
     "@aws-amplify/ui-react": "^6.11.2",
     "@aws-sdk/client-cognito-identity-provider": "^3.844.0",
     "@aws-sdk/client-dynamodb": "^3.846.0",

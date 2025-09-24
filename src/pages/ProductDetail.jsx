@@ -205,14 +205,44 @@ const ProductDetail = () => {
       return;
     }
 
-    // TODO: Implement buy now functionality
-    console.log(`Buying ${quantity} of ${product.name}`);
-    Swal.fire({
-      icon: 'info',
-      title: 'Buy Now',
-      text: `Proceeding to checkout with ${quantity} ${product.name}!`,
-      confirmButtonColor: '#3B82F6'
-    });
+    if (!product || product.stock <= 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Unavailable',
+        text: 'This product is currently out of stock.',
+        confirmButtonColor: '#3B82F6'
+      });
+      return;
+    }
+
+    const qty = Math.max(1, Math.min(quantity || 1, product.stock));
+
+    // Build a minimal cart item compatible with Checkout
+    const imageUrl = (product.images && product.images.length > 0) ? product.images[0].imageUrl : null;
+    const cartItem = {
+      productId: product.productId,
+      name: product.name,
+      price: Number(product.price || 0),
+      quantity: qty,
+      imageUrl,
+      images: product.images || [],
+      category: product.category,
+      isActive: true
+    };
+
+    try {
+      // Replace cart with this single item for Buy Now flow
+      localStorage.setItem('petverse_cart', JSON.stringify([cartItem]));
+      navigate('/checkout');
+    } catch (e) {
+      console.error('Failed to start buy-now flow:', e);
+      Swal.fire({
+        icon: 'error',
+        title: 'Buy Now Failed',
+        text: 'Could not proceed to checkout. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
+    }
   };
 
   if (loading) {

@@ -225,21 +225,33 @@ const AdminDashboard = () => {
             </div>
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4">
-                <button className="flex flex-col items-center p-4 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">
+                <button 
+                  onClick={() => navigate('/admin/products')}
+                  className="flex flex-col items-center p-4 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                >
                   <span className="text-3xl mb-2">➕</span>
                   <span className="text-sm font-medium text-gray-900">Add Product</span>
                 </button>
-                <button className="flex flex-col items-center p-4 bg-secondary-50 hover:bg-secondary-100 rounded-lg transition-colors">
+                <button 
+                  onClick={() => navigate('/admin/users')}
+                  className="flex flex-col items-center p-4 bg-secondary-50 hover:bg-secondary-100 rounded-lg transition-colors"
+                >
                   <span className="text-3xl mb-2">👥</span>
                   <span className="text-sm font-medium text-gray-900">Manage Users</span>
                 </button>
-                <button className="flex flex-col items-center p-4 bg-accent-50 hover:bg-accent-100 rounded-lg transition-colors">
+                <button 
+                  onClick={() => navigate('/communities')}
+                  className="flex flex-col items-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+                >
+                  <span className="text-3xl mb-2">🏘️</span>
+                  <span className="text-sm font-medium text-gray-900">Manage Communities</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/admin/analytics')}
+                  className="flex flex-col items-center p-4 bg-accent-50 hover:bg-accent-100 rounded-lg transition-colors"
+                >
                   <span className="text-3xl mb-2">📊</span>
                   <span className="text-sm font-medium text-gray-900">View Analytics</span>
-                </button>
-                <button className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
-                  <span className="text-3xl mb-2">⚙️</span>
-                  <span className="text-sm font-medium text-gray-900">Settings</span>
                 </button>
               </div>
             </div>

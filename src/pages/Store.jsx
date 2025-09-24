@@ -211,61 +211,46 @@ const Store = () => {
     []
   );
 
+  const formatPrice = (amount) => {
+    try {
+      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(amount || 0));
+    } catch {
+      return `₹${amount}`;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Modern Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-            Pet Store
-          </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Discover premium products for your beloved pets
-          </p>
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">Pet Store</h1>
+              <p className="text-gray-600 max-w-2xl mt-1">Discover premium products for your beloved pets</p>
+            </div>
+            <div className="w-full md:w-[420px]">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  defaultValue={searchTerm}
+                  onChange={(e) => debouncedSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm bg-white"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-800">{error}</p>
-                <button 
-                  onClick={loadProducts}
-                  className="mt-2 text-sm text-red-600 hover:text-red-500 underline"
-                >
-                  Try again
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modern Search and Filter Bar */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
-          {/* Search Bar */}
-          <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search products..."
-              defaultValue={searchTerm}
-              onChange={(e) => debouncedSearch(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm bg-gray-50 focus:bg-white"
-            />
-          </div>
-
-          {/* Category Filters */}
-          <div className="flex items-center justify-between mb-4">
+        {/* Filters Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-8">
+          <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-700">Categories</h3>
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -274,7 +259,6 @@ const Store = () => {
               {showFilters ? 'Hide' : 'Show'} filters
             </button>
           </div>
-
           <div className={`transition-all duration-300 ${showFilters ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {categories.map((category) => (
@@ -292,78 +276,85 @@ const Store = () => {
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Active Filters */}
-          {(searchTerm || selectedCategory !== 'all') && (
-            <div className="pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  {searchTerm && (
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium">
-                      Search: "{searchTerm}"
-                    </span>
-                  )}
-                  {selectedCategory !== 'all' && (
-                    <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
-                      {categories.find(c => c.id === selectedCategory)?.name}
-                    </span>
-                  )}
+            {(searchTerm || selectedCategory !== 'all') && (
+              <div className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    {searchTerm && (
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium">
+                        Search: "{searchTerm}"
+                      </span>
+                    )}
+                    {selectedCategory !== 'all' && (
+                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                        {categories.find(c => c.id === selectedCategory)?.name}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+                  >
+                    Clear all
+                  </button>
                 </div>
-                <button
-                  onClick={clearFilters}
-                  className="text-sm text-gray-500 hover:text-gray-700 font-medium"
-                >
-                  Clear all
-                </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Loading State */}
         {loading && (
-          <div className="flex justify-center items-center py-16">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-              <p className="text-gray-600 text-sm">Loading products...</p>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 animate-pulse">
+                <div className="aspect-square bg-gray-200 rounded-lg mb-4" />
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-4" />
+                <div className="h-10 bg-gray-200 rounded" />
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Modern Product Grid */}
+        {/* Product Grid */}
         {!loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredProducts.map((product) => {
               const inCart = isInCart(product.productId);
               const isPending = isOperationPending(product.productId);
-              
+              const rating = Math.max(0, Math.min(5, Number(product.rating || 0)));
+              const reviews = Number(product.reviewsCount || 0);
+
               return (
                 <div 
                   key={product.productId} 
-                  className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200"
+                  className="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border border-gray-100 hover:border-gray-200 flex flex-col"
                 >
-                  {/* Product Image */}
-                  <div className="relative aspect-square overflow-hidden">
-                    <img
-                      src={product.images && product.images.length > 0 ? product.images[0].imageUrl : 'https://placehold.co/300x300?text=No%20Image'}
-                      alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        e.target.src = 'https://placehold.co/300x300?text=Image%20Error';
-                      }}
-                    />
-                    
+                  {/* Image */}
+                  <div className="relative">
+                    <div className="overflow-hidden">
+                      <img
+                        src={product.images && product.images.length > 0 ? product.images[0].imageUrl : 'https://placehold.co/600x600?text=No%20Image'}
+                        alt={product.name}
+                        className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.src = 'https://placehold.co/600x600?text=Image%20Error';
+                        }}
+                      />
+                    </div>
+
                     {/* Featured Badge */}
                     {product.isFeatured && (
-                      <div className="absolute top-2 left-2 bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
-                        ⭐
+                      <div className="absolute top-3 left-3 bg-yellow-500 text-white px-2.5 py-1 rounded-full text-[11px] font-semibold shadow">
+                        Featured
                       </div>
                     )}
-                    
+
                     {/* Out of Stock Overlay */}
                     {product.stock <= 0 && (
-                      <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                         <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
                           Out of Stock
                         </span>
@@ -372,49 +363,59 @@ const Store = () => {
 
                     {/* Loading Overlay */}
                     {isPending && (
-                      <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-white"></div>
                       </div>
                     )}
                   </div>
 
-                  {/* Product Info */}
-                  <div className="p-5">
-                    {/* Product Name */}
-                    <h3 className="font-semibold text-gray-900 text-base mb-2 truncate group-hover:text-blue-600 transition-colors">
+                  {/* Info */}
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="font-semibold text-gray-900 text-base mb-1 line-clamp-2 min-h-[44px] group-hover:text-blue-600 transition-colors">
                       {product.name}
                     </h3>
-                    
-                    {/* Brand */}
+
                     {product.brand && (
-                      <p className="text-sm text-gray-500 mb-3">{product.brand}</p>
+                      <p className="text-xs text-gray-500 mb-2">{product.brand}</p>
                     )}
-                    
-                    {/* Price and Stock */}
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-xl font-bold text-gray-900">₹{product.price}</span>
-                      <span className="text-sm text-gray-500">{product.stock} left</span>
+
+                    {/* Rating */}
+                    <div className="flex items-center gap-1 mb-3">
+                      {Array.from({ length: 5 }).map((_, idx) => (
+                        <svg key={idx} className={`w-4 h-4 ${idx < rating ? 'text-yellow-400' : 'text-gray-300'}`} viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.802 2.035a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118L10 13.347l-2.885 2.125c-.785.57-1.84-.197-1.54-1.118l1.07-3.292a1 1 0 00-.364-1.118L3.479 8.72c-.783-.57-.38-1.81.588-1.81h3.462a1 1 0 00.95-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                      <span className="text-[11px] text-gray-500 ml-1">{reviews > 0 ? `(${reviews})` : ''}</span>
                     </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex gap-3">
+
+                    {/* Price + stock */}
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xl font-bold text-gray-900">{formatPrice(product.price)}</span>
+                      <span className="text-xs px-2 py-1 rounded-full border border-gray-200 text-gray-600">
+                        {product.stock} left
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="mt-auto grid grid-cols-2 gap-2">
                       <button 
                         onClick={() => toggleCart(product)}
                         disabled={product.stock <= 0 || isPending}
-                        className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center ${
+                        className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center ${
                           isPending
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             : inCart
-                              ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200'
+                              ? 'bg-green-50 text-green-700 border border-green-300 hover:bg-green-100'
                               : product.stock > 0 
-                                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' 
+                                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200' 
                                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                       >
                         {isPending ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b border-gray-400 mr-2"></div>
-                            Updating...
+                            Updating
                           </>
                         ) : inCart ? (
                           <>
@@ -436,7 +437,7 @@ const Store = () => {
                       <button 
                         onClick={() => navigate(`/product/${product.productId}`)}
                         disabled={product.stock <= 0 || isPending}
-                        className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center ${
+                        className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center ${
                           product.stock > 0 && !isPending
                             ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                             : 'bg-gray-300 text-gray-500 cursor-not-allowed'

@@ -524,52 +524,56 @@ const AdminUsers = () => {
 
                       {/* Actions */}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col space-y-2">
-                          {/* Role Update */}
-                          <select
-                            value={user.role || 'user'}
-                            onChange={(e) => updateUserRole(user.username, e.target.value)}
-                            disabled={updating}
-                            className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="user">User</option>
-                            <option value="admin">Admin</option>
-                            <option value="moderator">Moderator</option>
-                          </select>
+                        {user.role?.toLowerCase() === 'admin' ? (
+                          <div className="text-xs text-gray-500">Admin accounts are read-only</div>
+                        ) : (
+                          <div className="flex flex-col space-y-2">
+                            {/* Role Update */}
+                            <select
+                              value={user.role || 'user'}
+                              onChange={(e) => updateUserRole(user.username, e.target.value)}
+                              disabled={updating}
+                              className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                              <option value="moderator">Moderator</option>
+                            </select>
 
-                          {/* Action Buttons */}
-                          <div className="flex space-x-1">
-                            <button
-                              onClick={() => toggleUserStatus(user.username, user.enabled)}
-                              disabled={updating}
-                              className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
-                                user.enabled 
-                                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-                              } disabled:opacity-50`}
-                            >
-                              {user.enabled ? 'Disable' : 'Enable'}
-                            </button>
-                            
-                            {!user.emailVerified && (
+                            {/* Action Buttons */}
+                            <div className="flex space-x-1">
                               <button
-                                onClick={() => resendVerificationEmail(user.username, user.email)}
+                                onClick={() => toggleUserStatus(user.username, user.enabled)}
                                 disabled={updating}
-                                className="px-2 py-1 text-xs rounded font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-50"
+                                className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
+                                  user.enabled 
+                                    ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                } disabled:opacity-50`}
                               >
-                                Verify
+                                {user.enabled ? 'Disable' : 'Enable'}
                               </button>
-                            )}
-                            
-                            <button
-                              onClick={() => resetUserPassword(user.username, user.email)}
-                              disabled={updating}
-                              className="px-2 py-1 text-xs rounded font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
-                            >
-                              Reset
-                            </button>
+                              
+                              {!user.emailVerified && (
+                                <button
+                                  onClick={() => resendVerificationEmail(user.username, user.email)}
+                                  disabled={updating}
+                                  className="px-2 py-1 text-xs rounded font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 disabled:opacity-50"
+                                >
+                                  Verify
+                                </button>
+                              )}
+                              
+                              <button
+                                onClick={() => resetUserPassword(user.username, user.email)}
+                                disabled={updating}
+                                className="px-2 py-1 text-xs rounded font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
+                              >
+                                Reset
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </td>
                     </tr>
                   ))}
