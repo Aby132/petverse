@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Footer from '../components/Footer';
 import Swal from 'sweetalert2';
+import productService from '../services/productService';
 
 // Direct API configuration - no services needed
 const API_BASE_URL = 'https://m3hoptm1hi.execute-api.us-east-1.amazonaws.com/prod';
@@ -418,6 +419,18 @@ const Checkout = () => {
 
       console.log('Placing order:', orderData);
 
+      const afterOrderSuccess = async (extra = {}) => {
+        try {
+          const itemsForDecrement = (orderData.items || []).map(it => ({ productId: it.productId, quantity: it.quantity }));
+          await productService.decrementStockBulk(itemsForDecrement);
+        } catch (e) {
+          console.warn('Stock decrement failed:', e);
+        }
+        // Clear cart regardless; backend stock is source of truth
+        localStorage.removeItem('petverse_cart');
+        navigate('/order-confirmation', { state: extra });
+      };
+
       // Handle different payment methods
       if (paymentMethod === 'razorpay') {
         try {
@@ -505,7 +518,7 @@ const Checkout = () => {
                 const verificationResult = await verifyResponse.json();
                 console.log('Payment verification:', verificationResult);
 
-                // Show success message
+                // Show success and proceed
                 await Swal.fire({
                   icon: 'success',
                   title: 'Payment Successful!',
@@ -513,22 +526,16 @@ const Checkout = () => {
                   confirmButtonColor: '#10B981'
                 });
 
-                // Clear cart
-                localStorage.removeItem('petverse_cart');
-                
-                // Navigate to success page
-                navigate('/order-confirmation', { 
-                  state: { 
-                    orderSuccess: true,
+                await afterOrderSuccess({ 
+                  orderSuccess: true,
+                  orderId: orderResult.orderId,
+                  orderData: {
+                    ...orderData,
                     orderId: orderResult.orderId,
-                    orderData: {
-                      ...orderData,
-                      orderId: orderResult.orderId,
-                      paymentId: response.razorpay_payment_id,
-                      razorpayOrderId: response.razorpay_order_id,
-                      paymentVerified: verificationResult.isSignatureValid
-                    }
-                  } 
+                    paymentId: response.razorpay_payment_id,
+                    razorpayOrderId: response.razorpay_order_id,
+                    paymentVerified: verificationResult.isSignatureValid
+                  }
                 });
               } catch (error) {
                 console.error('Error processing successful payment:', error);
@@ -538,7 +545,6 @@ const Checkout = () => {
                   text: 'Payment successful but order creation failed. Please contact support.',
                   confirmButtonColor: '#3B82F6'
                 });
-              } finally {
                 setIsProcessing(false);
               }
             },
@@ -547,9 +553,7 @@ const Checkout = () => {
               email: selectedAddress.email,
               contact: selectedAddress.phone
             },
-            theme: {
-              color: '#3B82F6'
-            }
+            theme: { color: '#3B82F6' }
           };
 
           const razorpay = new window.Razorpay(options);
@@ -576,7 +580,6 @@ const Checkout = () => {
           if (orderResponse.ok) {
             const orderResult = await orderResponse.json();
             
-            // Show success message for COD
             await Swal.fire({
               icon: 'success',
               title: 'Order Placed Successfully!',
@@ -584,18 +587,13 @@ const Checkout = () => {
               confirmButtonColor: '#10B981'
             });
             
-            // Clear cart
-            localStorage.removeItem('petverse_cart');
-            
-            navigate('/order-confirmation', { 
-              state: { 
-                orderSuccess: true,
-                orderId: orderResult.orderId,
-                orderData: {
-                  ...orderData,
-                  orderId: orderResult.orderId
-                }
-              } 
+            await afterOrderSuccess({ 
+              orderSuccess: true,
+              orderId: orderResult.orderId,
+              orderData: {
+                ...orderData,
+                orderId: orderResult.orderId
+              }
             });
           } else {
             throw new Error('Failed to create order');
@@ -608,7 +606,6 @@ const Checkout = () => {
             text: 'Failed to place order. Please try again.',
             confirmButtonColor: '#3B82F6'
           });
-        } finally {
           setIsProcessing(false);
         }
       }

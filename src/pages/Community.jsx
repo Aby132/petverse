@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import communityService from '../services/communityService';
 import { useAuth } from '../contexts/AuthContext';
+import { RekognitionClient, DetectModerationLabelsCommand } from '@aws-sdk/client-rekognition';
+import { fromCognitoIdentityPool } from '@aws-sdk/credential-provider-cognito-identity';
+import { CognitoIdentityClient } from '@aws-sdk/client-cognito-identity';
 
 const Community = () => {
   const [communities, setCommunities] = useState([]);
@@ -18,6 +21,7 @@ const Community = () => {
   const [mediaPreview, setMediaPreview] = useState('');
   const [mediaType, setMediaType] = useState('none'); // image|video|none
   const [processing, setProcessing] = useState(false);
+  const [modWarning, setModWarning] = useState('');
   const { user } = useAuth();
   const currentUserId = user?.attributes?.sub || user?.username || user?.attributes?.email || 'anonymous';
   const messagesEndRef = useRef(null);
@@ -46,6 +50,224 @@ const Community = () => {
   };
 
   const categories = ['All', 'Dogs', 'Cats', 'Birds', 'Fish', 'Exotic', 'General'];
+
+  // Perspective API moderation
+  const PERSPECTIVE_API_KEY = 'AIzaSyBn-Ohv5CRYEiIwslcFiwI_o6oN-qMxYiY';
+  const PERSPECTIVE_API_URL = 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze';
+
+  const moderateText = async (text) => {
+    if (!text || !text.trim()) return '';
+    
+    try {
+      // Check if API key is available
+      if (!PERSPECTIVE_API_KEY || PERSPECTIVE_API_KEY === 'YOUR_API_KEY') {
+        console.warn('Perspective API key not configured, skipping text moderation');
+        return ''; // Allow text if API key not configured
+      }
+
+      const response = await fetch(`${PERSPECTIVE_API_URL}?key=${PERSPECTIVE_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comment: {
+            text: text
+          },
+          requestedAttributes: {
+            TOXICITY: {},
+            SEVERE_TOXICITY: {},
+            IDENTITY_ATTACK: {},
+            INSULT: {},
+            PROFANITY: {},
+            THREAT: {},
+            SPAM: {}
+          },
+          languages: ['en']
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Perspective API error:', response.status, errorText);
+        return ''; // Fallback: allow message if API fails
+      }
+
+      const data = await response.json();
+      const scores = data.attributeScores || {};
+
+      // Check for violations with thresholds
+      const violations = [];
+      
+      if (scores.TOXICITY?.summaryScore?.value > 0.7) {
+        violations.push('toxic content');
+      }
+      if (scores.SEVERE_TOXICITY?.summaryScore?.value > 0.5) {
+        violations.push('severely toxic content');
+      }
+      if (scores.IDENTITY_ATTACK?.summaryScore?.value > 0.6) {
+        violations.push('identity-based attacks');
+      }
+      if (scores.INSULT?.summaryScore?.value > 0.7) {
+        violations.push('insulting language');
+      }
+      if (scores.PROFANITY?.summaryScore?.value > 0.6) {
+        violations.push('profanity');
+      }
+      if (scores.THREAT?.summaryScore?.value > 0.6) {
+        violations.push('threatening language');
+      }
+      if (scores.SPAM?.summaryScore?.value > 0.7) {
+        violations.push('spam content');
+      }
+
+      if (violations.length > 0) {
+        return `Please avoid ${violations.join(', ')}. Your message contains inappropriate content.`;
+      }
+
+      return '';
+    } catch (error) {
+      console.error('Moderation API error:', error);
+      return ''; // Fallback: allow message if API fails
+    }
+  };
+
+  // AWS Rekognition configuration using Cognito Identity Pool
+  const getRekognitionClient = () => {
+    // Only create client if user is authenticated
+    if (!user?.signInUserSession?.idToken?.jwtToken) {
+      console.warn('User not authenticated, cannot create Rekognition client');
+      return null;
+    }
+
+    return new RekognitionClient({
+      region: 'us-east-1',
+      credentials: fromCognitoIdentityPool({
+        client: new CognitoIdentityClient({ region: 'us-east-1' }),
+        identityPoolId: 'us-east-1:3749f1ad-a6f8-4b3b-98aa-11efa9dcd5c8',
+        logins: {
+          [`cognito-idp.us-east-1.amazonaws.com/us-east-1_4AwgtFfdJ`]: user.signInUserSession.idToken.jwtToken
+        }
+      })
+    });
+  };
+
+  // NSFW detection for images using Amazon Rekognition
+  const moderateImageWithRekognition = async (imageFile) => {
+    try {
+      const rekognitionClient = getRekognitionClient();
+      if (!rekognitionClient) {
+        console.warn('Rekognition client not available, skipping image moderation');
+        return ''; // Allow image if client not available
+      }
+
+      // Convert image to buffer for Rekognition
+      const imageBuffer = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(imageFile);
+      });
+
+      const command = new DetectModerationLabelsCommand({
+        Image: {
+          Bytes: new Uint8Array(imageBuffer)
+        },
+        MinConfidence: 70 // Minimum confidence threshold (0-100)
+      });
+
+      const response = await rekognitionClient.send(command);
+      const moderationLabels = response.ModerationLabels || [];
+
+      // Check for inappropriate content
+      const inappropriateLabels = [
+        'Explicit Nudity',
+        'Suggestive',
+        'Violence',
+        'Visually Disturbing',
+        'Rude Gestures',
+        'Drugs',
+        'Tobacco',
+        'Alcohol',
+        'Gambling',
+        'Hate Symbols'
+      ];
+
+      const violations = moderationLabels.filter(label => 
+        inappropriateLabels.includes(label.Name) && label.Confidence > 70
+      );
+
+      if (violations.length > 0) {
+        const violationTypes = violations.map(v => v.Name).join(', ');
+        return `This image contains inappropriate content (${violationTypes}). Please upload a different image.`;
+      }
+
+      return '';
+    } catch (error) {
+      console.error('Rekognition moderation error:', error);
+      return ''; // Fallback: allow image if API fails
+    }
+  };
+
+  // Alternative: Moderate image after S3 upload using S3 object key
+  const moderateImageFromS3 = async (s3ObjectKey) => {
+    try {
+      const rekognitionClient = getRekognitionClient();
+      if (!rekognitionClient) {
+        console.warn('Rekognition client not available, skipping S3 image moderation');
+        return ''; // Allow image if client not available
+      }
+
+      const command = new DetectModerationLabelsCommand({
+        Image: {
+          S3Object: {
+            Bucket: 'petverse-community-media',
+            Name: s3ObjectKey
+          }
+        },
+        MinConfidence: 70
+      });
+
+      const response = await rekognitionClient.send(command);
+      const moderationLabels = response.ModerationLabels || [];
+
+      // Check for inappropriate content
+      const inappropriateLabels = [
+        'Explicit Nudity',
+        'Suggestive',
+        'Violence',
+        'Visually Disturbing',
+        'Rude Gestures',
+        'Drugs',
+        'Tobacco',
+        'Alcohol',
+        'Gambling',
+        'Hate Symbols'
+      ];
+
+      const violations = moderationLabels.filter(label => 
+        inappropriateLabels.includes(label.Name) && label.Confidence > 70
+      );
+
+      if (violations.length > 0) {
+        const violationTypes = violations.map(v => v.Name).join(', ');
+        return `This image contains inappropriate content (${violationTypes}). Please upload a different image.`;
+      }
+
+      return '';
+    } catch (error) {
+      console.error('Rekognition S3 moderation error:', error);
+      return ''; // Fallback: allow image if API fails
+    }
+  };
+
+  useEffect(() => {
+    // Clear moderation warning when user edits message
+    if (modWarning) {
+      setModWarning('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newMessage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,7 +396,30 @@ const Community = () => {
   const handleSendMessage = async () => {
     if (!selectedCommunity) return;
     if (!newMessage.trim() && !mediaFile) return;
+
+    setProcessing(true);
+
     try {
+      // Run Perspective API moderation on text
+      if (newMessage.trim()) {
+        const violation = await moderateText(newMessage);
+        if (violation) {
+          setModWarning(violation);
+          setProcessing(false);
+          return;
+        }
+      }
+
+      // Run NSFW detection on images using Amazon Rekognition
+      if (mediaFile && mediaType === 'image') {
+        const imageViolation = await moderateImageWithRekognition(mediaFile);
+        if (imageViolation) {
+          setModWarning(imageViolation);
+          setProcessing(false);
+          return;
+        }
+      }
+
       let uploaded = { mediaUrl: '', mediaType: 'none' };
       if (mediaFile) {
         setUploading(true);
@@ -184,10 +429,10 @@ const Community = () => {
       const sent = await communityService.sendMessage(selectedCommunity.id, { text: newMessage, userId: currentUserId, ...uploaded });
       const msg = {
         id: sent.messageId || Date.now(),
-        user: sent.userId === currentUserId ? 'You' : (sent.userId || 'Member'),
+        user: 'You',
         userName: sent.userName,
         userId: sent.userId,
-        userAvatar: (sent.userId === currentUserId ? 'YO' : (sent.userId || 'MB')).slice(0,2).toUpperCase(),
+        userAvatar: 'YO',
         message: sent.text || newMessage,
         time: new Date().toLocaleTimeString(),
         timestamp: new Date(sent.createdAt || Date.now()),
@@ -200,10 +445,12 @@ const Community = () => {
       setMediaFile(null);
       setMediaPreview('');
       setMediaType('none');
+      setModWarning('');
     } catch (e) {
       console.error(e);
     } finally {
       setUploading(false);
+      setProcessing(false);
     }
   };
 
@@ -328,7 +575,7 @@ const Community = () => {
   // Convert API message item to UI message object
   const mapApiMessage = (m) => ({
     id: m.messageId || `${m.communityId}-${m.createdAt}`,
-    user: m.userId === currentUserId ? 'You' : (m.userId || 'Member'),
+    user: m.userId === currentUserId ? 'You' : 'Member',
     userName: m.userName,
     userId: m.userId,
     userAvatar: (m.userId === currentUserId ? 'YO' : (m.userId || 'MB')).slice(0,2).toUpperCase(),
@@ -359,11 +606,11 @@ const Community = () => {
               if (nameById.size) {
                 setCommunities(prev => prev.map(c => c.id === selectedCommunity.id ? {
                   ...c,
-                  messages: (c.messages || []).map(m => m.userName || !nameById.get(m.userId) ? m : { ...m, userName: nameById.get(m.userId) })
+                  messages: (c.messages || []).map(m => m.userName || !nameById.get(m.userId) ? m : { ...m, userName: nameById.get(m.userId), user: m.userId === currentUserId ? 'You' : nameById.get(m.userId) })
                 } : c));
                 setSelectedCommunity(prev => prev ? {
                   ...prev,
-                  messages: (prev.messages || []).map(m => m.userName || !nameById.get(m.userId) ? m : { ...m, userName: nameById.get(m.userId) })
+                  messages: (prev.messages || []).map(m => m.userName || !nameById.get(m.userId) ? m : { ...m, userName: nameById.get(m.userId), user: m.userId === currentUserId ? 'You' : nameById.get(m.userId) })
                 } : prev);
               }
             })
@@ -401,10 +648,10 @@ const Community = () => {
           </div>
         )}
         {/* Left Sidebar - Communities */}
-        <div className="w-80 bg-gray-50 flex flex-col border-r border-gray-200 overflow-hidden">
+        <div className="w-80 bg-gray-50 flex flex-col border-r border-gray-200">
           {/* Header */}
-          <div className="p-2 border-b border-gray-200 bg-white">
-            <h1 className="text-xl font-bold text-gray-900 mb-2">Pet Communities</h1>
+          <div className="p-3 border-b border-gray-200 bg-white sticky top-0 z-10">
+            <h1 className="text-lg font-bold text-gray-900 mb-2">Pet Communities</h1>
             <div className="flex space-x-2">
               <input
                 type="text"
@@ -428,8 +675,8 @@ const Community = () => {
           {/* Scrollable Communities List (vertical) */}
           <div className="flex-1 overflow-y-auto">
             {/* My Communities Section */}
-            <div className="p-2 border-b border-gray-200">
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
+            <div className="p-3 border-b border-gray-200">
+              <h2 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
                 My Communities ({joinedCommunities.length})
               </h2>
               <div className="space-y-2">
@@ -465,22 +712,35 @@ const Community = () => {
             </div>
 
             {/* Available Communities Section */}
-            <div className="p-2">
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
+            <div className="p-3">
+              <h2 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
                 Available Communities ({availableCommunities.length})
               </h2>
               <div className="space-y-2">
                   {availableCommunities.map((community) => (
                   <div
                       key={community.id}
-                      onClick={() => selectCommunity(community)}
-                      className="p-3 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors"
+                      className="p-3 rounded-lg bg-white border border-gray-200 text-gray-700"
                     >
                       <div className="flex items-center space-x-3">
                         <span className="text-2xl">{community.image}</span>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{community.name}</p>
                           <p className="text-xs text-gray-500">{community.memberCount} members</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => selectCommunity(community)}
+                            className="text-xs text-gray-600 hover:text-gray-800"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleJoinCommunity(community.id); }}
+                            className="text-xs bg-primary-600 hover:bg-primary-700 text-white px-3 py-1 rounded-md"
+                          >
+                            Join
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -495,7 +755,7 @@ const Community = () => {
           {selectedCommunity ? (
             <>
               {/* Header */}
-              <div className="bg-white border-b border-gray-200 p-2 flex-shrink-0">
+              <div className="bg-white border-b border-gray-200 p-3 flex-shrink-0">
                 <div className="flex items-center space-x-3">
                   <span className="text-2xl">{selectedCommunity.image}</span>
                   <div>
@@ -507,12 +767,12 @@ const Community = () => {
 
               {selectedCommunity.isJoined ? (
                 <>
-                  {/* Messages - Fixed height, no scroll */}
-                  <div className="flex-1 bg-gray-50 p-2 space-y-2 overflow-hidden">
-                    <div ref={messagesEndRef} className="h-full overflow-y-auto space-y-2">
+                  {/* Messages container - only this scrolls vertically */}
+                  <div className="flex-1 bg-gray-50 p-3 overflow-hidden">
+                    <div ref={messagesEndRef} className="h-full overflow-y-auto space-y-2 pr-1">
                       {(selectedCommunity.messages || []).map((m) => {
                         const isMe = m.userId === currentUserId || m.user === 'You';
-                        const displayName = isMe ? 'You' : (m.userName || m.user || 'Member');
+                        const displayName = isMe ? 'You' : (m.userName || 'Member');
                         return (
                           <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[70%] ${isMe ? 'text-right' : 'text-left'}`}>
@@ -542,37 +802,44 @@ const Community = () => {
                     </div>
                   </div>
 
-                  {/* Message Input */}
-                  <div className="bg-white border-t border-gray-200 p-2 flex-shrink-0">
-                    <div className="flex space-x-3 items-center">
-                      {mediaPreview && (
-                        <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                          {mediaType === 'image' ? (
-                            <img src={mediaPreview} alt="preview" className="h-10 w-10 object-cover rounded" />
-                          ) : (
-                            <span className="text-xs text-gray-600">Video attached</span>
-                          )}
-                          <button onClick={() => { setMediaFile(null); setMediaPreview(''); setMediaType('none'); }} className="text-xs text-red-600 hover:text-red-700">Remove</button>
-                        </div>
+                  {/* Message Input - fixed at bottom of right pane */}
+                  <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0">
+                    <div className="flex flex-col gap-2">
+                      {modWarning && (
+                        <div className="text-xs text-red-600">{modWarning}</div>
                       )}
-                      <input
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
-                        placeholder={`Message #${selectedCommunity.name}`}
-                        className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      />
-                      <label className="px-2 py-1 border border-gray-300 rounded-lg text-gray-700 cursor-pointer hover:bg-gray-50 text-sm">
-                        {processing ? 'Processing...' : uploading ? 'Uploading...' : 'Upload'}
-                        <input type="file" accept="image/*,video/*" className="hidden" onChange={handleUploadMedia} disabled={uploading} />
-                      </label>
-                      <button
-                        onClick={handleSendMessage}
-                        className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
-                      >
-                        Send
-                      </button>
+                      <div className="flex space-x-3 items-center">
+                        {mediaPreview && (
+                          <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
+                            {mediaType === 'image' ? (
+                              <img src={mediaPreview} alt="preview" className="h-10 w-10 object-cover rounded" />
+                            ) : (
+                              <span className="text-xs text-gray-600">Video attached</span>
+                            )}
+                            <button onClick={() => { setMediaFile(null); setMediaPreview(''); setMediaType('none'); }} className="text-xs text-red-600 hover:text-red-700">Remove</button>
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !processing && !uploading) handleSendMessage(); }}
+                          placeholder={`Message #${selectedCommunity.name}`}
+                          disabled={processing || uploading}
+                          className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                        <label className="px-2 py-1 border border-gray-300 rounded-lg text-gray-700 cursor-pointer hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                          {processing ? 'Moderating...' : uploading ? 'Uploading...' : 'Upload'}
+                          <input type="file" accept="image/*,video/*" className="hidden" onChange={handleUploadMedia} disabled={uploading || processing} />
+                        </label>
+                        <button
+                          onClick={handleSendMessage}
+                          disabled={processing || uploading}
+                          className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                        >
+                          {processing ? 'Moderating...' : 'Send'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </>

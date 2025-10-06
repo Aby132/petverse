@@ -31,7 +31,10 @@ class ProductService {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      // Some endpoints may return no content
+      const text = await response.text();
+      if (!text) return {};
+      const data = JSON.parse(text);
       console.log(`✅ API response:`, data);
       return data;
     } catch (error) {
@@ -153,6 +156,36 @@ class ProductService {
       console.error(`Failed to delete product ${productId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Decrement stock for a single product (fetch + update)
+   */
+  async decrementStock(productId, quantity) {
+    const qty = Math.max(0, parseInt(quantity) || 0);
+    if (qty === 0) return { success: true };
+    const product = await this.getProduct(productId);
+    const current = parseInt(product?.stock) || 0;
+    const next = Math.max(0, current - qty);
+    await this.updateProduct(productId, { stock: next });
+    return { success: true, productId, stock: next };
+  }
+
+  /**
+   * Decrement stock for multiple items
+   * items: [{ productId, quantity }]
+   */
+  async decrementStockBulk(items = []) {
+    const safeItems = (Array.isArray(items) ? items : []).filter(i => i && i.productId && i.quantity > 0);
+    for (const item of safeItems) {
+      try {
+        // Sequential to avoid write conflicts; adjust to Promise.all if backend handles concurrency
+        await this.decrementStock(item.productId, item.quantity);
+      } catch (e) {
+        console.warn('Failed to decrement stock for', item.productId, e);
+      }
+    }
+    return { success: true };
   }
 
   /**

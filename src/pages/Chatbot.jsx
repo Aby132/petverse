@@ -786,10 +786,10 @@ const Chatbot = () => {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 to-green-100 flex flex-col sm:flex-row items-stretch overflow-hidden">
+    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-blue-50 to-green-100 flex flex-col sm:flex-row items-stretch">
       {/* Sidebar with logo, welcome, tips, fun fact */}
       <aside
-        className={`transition-all duration-300 fixed sm:static z-30 top-0 left-0 h-full sm:h-auto bg-white/90 border-r border-blue-100 shadow-lg flex flex-col items-center py-6 px-4 gap-4
+        className={`transition-all duration-300 fixed sm:static z-30 top-0 left-0 h-full sm:h-full bg-white/90 border-r border-blue-100 shadow-lg flex flex-col items-center py-6 px-4 gap-4 overflow-y-auto
         ${sidebarOpen ? 'w-4/5 sm:w-80' : 'w-16 sm:w-16'}
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}
         sm:relative sm:translate-x-0`}
@@ -832,7 +832,7 @@ const Chatbot = () => {
         )}
       </aside>
       {/* Main chat area */}
-      <main className="flex-1 flex flex-col bg-white rounded-3xl shadow-2xl p-0 sm:p-6 h-full overflow-hidden">
+      <main className="flex-1 flex flex-col bg-white rounded-3xl shadow-2xl p-0 sm:p-6 h-full min-h-0 overflow-hidden">
         {/* Header with sidebar toggle for mobile */}
         <header className="w-full bg-white/80 backdrop-blur border-b border-blue-100 shadow-sm flex items-center justify-between py-3 mb-2 px-4 sm:px-0 flex-shrink-0">
           <div className="flex items-center">
@@ -854,7 +854,7 @@ const Chatbot = () => {
           </div>
         </header>
         {/* Chat window with collapsible Q&A pairs */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
           <div className="flex-1 overflow-y-auto px-2 sm:px-0 py-4 space-y-3 custom-scrollbar">
             {qaPairs.map((pair, idx) => (
               <div key={idx} className="mb-2">

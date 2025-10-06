@@ -32,6 +32,10 @@ class CommunityService {
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       return response;
+    } catch (err) {
+      // Provide clearer errors for CORS/preflight failures
+      if (err?.name === 'AbortError') throw err;
+      throw new Error((err && err.message) || 'Network request failed');
     } finally {
       clearTimeout(id);
     }
@@ -342,7 +346,14 @@ class CommunityService {
         throw new Error('Failed to delete community');
       }
 
-      return await response.json();
+      // Some APIs return 204 No Content for delete
+      const text = await response.text();
+      if (!text) return { success: true };
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { success: true };
+      }
     } catch (error) {
       console.error('Error deleting community:', error);
       throw error;
@@ -368,8 +379,13 @@ class CommunityService {
         throw new Error('Failed to toggle community status');
       }
 
-      const data = await response.json();
-      return data;
+      const text = await response.text();
+      if (!text) return { id: communityId, isActive };
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { id: communityId, isActive };
+      }
     } catch (error) {
       console.error('Error toggling community status:', error);
       throw error;
