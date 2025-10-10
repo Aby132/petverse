@@ -2,9 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import communityService from '../services/communityService';
 import { useAuth } from '../contexts/AuthContext';
-import { RekognitionClient, DetectModerationLabelsCommand } from '@aws-sdk/client-rekognition';
-import { fromCognitoIdentityPool } from '@aws-sdk/credential-provider-cognito-identity';
-import { CognitoIdentityClient } from '@aws-sdk/client-cognito-identity';
 
 const Community = () => {
   const [communities, setCommunities] = useState([]);
@@ -132,134 +129,190 @@ const Community = () => {
     }
   };
 
-  // AWS Rekognition configuration using Cognito Identity Pool
-  const getRekognitionClient = () => {
-    // Only create client if user is authenticated
-    if (!user?.signInUserSession?.idToken?.jwtToken) {
-      console.warn('User not authenticated, cannot create Rekognition client');
-      return null;
-    }
+  // Sightengine API configuration
+  const SIGHTENGINE_API_USER = '1203424303';
+  const SIGHTENGINE_API_SECRET = 'dGSCi43vWvrkrLFk4tXEZ62SFJ4Gc9Cp';
+  const SIGHTENGINE_API_URL = 'https://api.sightengine.com/1.0/check.json';
+  
+  // Models to check for content moderation
+  const SIGHTENGINE_MODELS = [
+    'nudity-2.1',
+    'weapon',
+    'alcohol',
+    'recreational_drug',
+    'medical',
+    'offensive-2.0',
+    'faces',
+    'scam',
+    'text-content',
+    'face-attributes',
+    'gore-2.0',
+    'qr-content',
+    'tobacco',
+    'violence',
+    'self-harm'
+  ].join(',');
 
-    return new RekognitionClient({
-      region: 'us-east-1',
-      credentials: fromCognitoIdentityPool({
-        client: new CognitoIdentityClient({ region: 'us-east-1' }),
-        identityPoolId: 'us-east-1:3749f1ad-a6f8-4b3b-98aa-11efa9dcd5c8',
-        logins: {
-          [`cognito-idp.us-east-1.amazonaws.com/us-east-1_4AwgtFfdJ`]: user.signInUserSession.idToken.jwtToken
+  // Content moderation for images and videos using Sightengine API
+  const moderateMediaWithSightengine = async (mediaFile) => {
+    try {
+      // Create FormData for the API request
+      const formData = new FormData();
+      formData.append('media', mediaFile);
+      formData.append('models', SIGHTENGINE_MODELS);
+      formData.append('api_user', SIGHTENGINE_API_USER);
+      formData.append('api_secret', SIGHTENGINE_API_SECRET);
+
+      const response = await fetch(SIGHTENGINE_API_URL, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Sightengine API error:', response.status, errorText);
+        return ''; // Fallback: allow media if API fails
+      }
+
+      const data = await response.json();
+      console.log('Sightengine response:', data);
+
+      // Check for violations based on actual API response structure
+      const violations = [];
+
+      // Check nudity (multiple categories)
+      if (data.nudity) {
+        if (data.nudity.sexual_activity > 0.7) violations.push('sexual activity');
+        if (data.nudity.sexual_display > 0.7) violations.push('sexual display');
+        if (data.nudity.erotica > 0.7) violations.push('erotic content');
+        if (data.nudity.very_suggestive > 0.7) violations.push('very suggestive content');
+        if (data.nudity.suggestive > 0.7) violations.push('suggestive content');
+        if (data.nudity.mildly_suggestive > 0.7) violations.push('mildly suggestive content');
+      }
+
+      // Check weapons (detailed categories)
+      if (data.weapon) {
+        const weaponClasses = data.weapon.classes || {};
+        if (weaponClasses.firearm > 0.7) violations.push('firearms');
+        if (weaponClasses.firearm_gesture > 0.7) violations.push('firearm gestures');
+        if (weaponClasses.firearm_toy > 0.7) violations.push('toy firearms');
+        if (weaponClasses.knife > 0.7) violations.push('knives');
+      }
+
+      // Check alcohol
+      if (data.alcohol?.prob > 0.7) {
+        violations.push('alcohol');
+      }
+
+      // Check recreational drugs
+      if (data.recreational_drug?.prob > 0.7) {
+        const drugClasses = data.recreational_drug.classes || {};
+        if (drugClasses.cannabis > 0.7) violations.push('cannabis');
+        if (drugClasses.cannabis_plant > 0.7) violations.push('cannabis plants');
+        if (drugClasses.cannabis_drug > 0.7) violations.push('cannabis drugs');
+        if (drugClasses.recreational_drugs_not_cannabis > 0.7) violations.push('other recreational drugs');
+      }
+
+      // Check medical content
+      if (data.medical?.prob > 0.7) {
+        const medicalClasses = data.medical.classes || {};
+        if (medicalClasses.pills > 0.7) violations.push('pills/medication');
+        if (medicalClasses.paraphernalia > 0.7) violations.push('medical paraphernalia');
+      }
+
+      // Check offensive content (hate symbols, gestures)
+      if (data.offensive) {
+        if (data.offensive.nazi > 0.7) violations.push('Nazi symbols');
+        if (data.offensive.asian_swastika > 0.7) violations.push('Asian swastika');
+        if (data.offensive.confederate > 0.7) violations.push('Confederate symbols');
+        if (data.offensive.supremacist > 0.7) violations.push('supremacist symbols');
+        if (data.offensive.terrorist > 0.7) violations.push('terrorist symbols');
+        if (data.offensive.middle_finger > 0.7) violations.push('offensive gestures');
+      }
+
+      // Check gore/violence
+      if (data.gore?.prob > 0.7) {
+        const goreClasses = data.gore.classes || {};
+        if (goreClasses.very_bloody > 0.7) violations.push('very bloody content');
+        if (goreClasses.slightly_bloody > 0.7) violations.push('bloody content');
+        if (goreClasses.body_organ > 0.7) violations.push('body organs');
+        if (goreClasses.serious_injury > 0.7) violations.push('serious injuries');
+        if (goreClasses.superficial_injury > 0.7) violations.push('injuries');
+        if (goreClasses.corpse > 0.7) violations.push('corpses');
+        if (goreClasses.skull > 0.7) violations.push('skulls');
+        if (goreClasses.unconscious > 0.7) violations.push('unconscious people');
+        if (goreClasses.body_waste > 0.7) violations.push('body waste');
+      }
+
+      // Check tobacco
+      if (data.tobacco?.prob > 0.7) {
+        const tobaccoClasses = data.tobacco.classes || {};
+        if (tobaccoClasses.regular_tobacco > 0.7) violations.push('tobacco products');
+        if (tobaccoClasses.ambiguous_tobacco > 0.7) violations.push('tobacco-related content');
+      }
+
+      // Check violence
+      if (data.violence?.prob > 0.7) {
+        const violenceClasses = data.violence.classes || {};
+        if (violenceClasses.physical_violence > 0.7) violations.push('physical violence');
+        if (violenceClasses.firearm_threat > 0.7) violations.push('firearm threats');
+        if (violenceClasses.combat_sport > 0.7) violations.push('combat sports');
+      }
+
+      // Check self-harm
+      if (data.self_harm?.prob > 0.7) {
+        violations.push('self-harm content');
+      }
+
+      // Check scam content
+      if (data.scam?.prob > 0.7) {
+        violations.push('scam content');
+      }
+
+      // Check text content for inappropriate text
+      if (data.text) {
+        const textViolations = [];
+        if (data.text.profanity?.length > 0) textViolations.push('profanity');
+        if (data.text.personal?.length > 0) textViolations.push('personal information');
+        if (data.text.link?.length > 0) textViolations.push('suspicious links');
+        if (data.text.social?.length > 0) textViolations.push('social media content');
+        if (data.text.extremism?.length > 0) textViolations.push('extremist content');
+        if (data.text.medical?.length > 0) textViolations.push('medical claims');
+        if (data.text.drug?.length > 0) textViolations.push('drug-related text');
+        if (data.text.weapon?.length > 0) textViolations.push('weapon-related text');
+        if (data.text.violence?.length > 0) textViolations.push('violent text');
+        if (data.text.self_harm?.length > 0) textViolations.push('self-harm text');
+        if (data.text.spam?.length > 0) textViolations.push('spam text');
+        if (textViolations.length > 0) {
+          violations.push(`inappropriate text (${textViolations.join(', ')})`);
         }
-      })
-    });
-  };
-
-  // NSFW detection for images using Amazon Rekognition
-  const moderateImageWithRekognition = async (imageFile) => {
-    try {
-      const rekognitionClient = getRekognitionClient();
-      if (!rekognitionClient) {
-        console.warn('Rekognition client not available, skipping image moderation');
-        return ''; // Allow image if client not available
       }
 
-      // Convert image to buffer for Rekognition
-      const imageBuffer = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(imageFile);
-      });
-
-      const command = new DetectModerationLabelsCommand({
-        Image: {
-          Bytes: new Uint8Array(imageBuffer)
-        },
-        MinConfidence: 70 // Minimum confidence threshold (0-100)
-      });
-
-      const response = await rekognitionClient.send(command);
-      const moderationLabels = response.ModerationLabels || [];
-
-      // Check for inappropriate content
-      const inappropriateLabels = [
-        'Explicit Nudity',
-        'Suggestive',
-        'Violence',
-        'Visually Disturbing',
-        'Rude Gestures',
-        'Drugs',
-        'Tobacco',
-        'Alcohol',
-        'Gambling',
-        'Hate Symbols'
-      ];
-
-      const violations = moderationLabels.filter(label => 
-        inappropriateLabels.includes(label.Name) && label.Confidence > 70
-      );
+      // Check QR codes for inappropriate content
+      if (data.qr) {
+        const qrViolations = [];
+        if (data.qr.personal?.length > 0) qrViolations.push('personal information');
+        if (data.qr.link?.length > 0) qrViolations.push('suspicious links');
+        if (data.qr.social?.length > 0) qrViolations.push('social media');
+        if (data.qr.spam?.length > 0) qrViolations.push('spam');
+        if (data.qr.profanity?.length > 0) qrViolations.push('profanity');
+        if (data.qr.blacklist?.length > 0) qrViolations.push('blacklisted content');
+        if (qrViolations.length > 0) {
+          violations.push(`inappropriate QR codes (${qrViolations.join(', ')})`);
+        }
+      }
 
       if (violations.length > 0) {
-        const violationTypes = violations.map(v => v.Name).join(', ');
-        return `This image contains inappropriate content (${violationTypes}). Please upload a different image.`;
+        return `This ${mediaFile.type.startsWith('video') ? 'video' : 'image'} contains inappropriate content: ${violations.join(', ')}. Please upload different content.`;
       }
 
       return '';
     } catch (error) {
-      console.error('Rekognition moderation error:', error);
-      return ''; // Fallback: allow image if API fails
+      console.error('Sightengine moderation error:', error);
+      return ''; // Fallback: allow media if API fails
     }
   };
 
-  // Alternative: Moderate image after S3 upload using S3 object key
-  const moderateImageFromS3 = async (s3ObjectKey) => {
-    try {
-      const rekognitionClient = getRekognitionClient();
-      if (!rekognitionClient) {
-        console.warn('Rekognition client not available, skipping S3 image moderation');
-        return ''; // Allow image if client not available
-      }
-
-      const command = new DetectModerationLabelsCommand({
-        Image: {
-          S3Object: {
-            Bucket: 'petverse-community-media',
-            Name: s3ObjectKey
-          }
-        },
-        MinConfidence: 70
-      });
-
-      const response = await rekognitionClient.send(command);
-      const moderationLabels = response.ModerationLabels || [];
-
-      // Check for inappropriate content
-      const inappropriateLabels = [
-        'Explicit Nudity',
-        'Suggestive',
-        'Violence',
-        'Visually Disturbing',
-        'Rude Gestures',
-        'Drugs',
-        'Tobacco',
-        'Alcohol',
-        'Gambling',
-        'Hate Symbols'
-      ];
-
-      const violations = moderationLabels.filter(label => 
-        inappropriateLabels.includes(label.Name) && label.Confidence > 70
-      );
-
-      if (violations.length > 0) {
-        const violationTypes = violations.map(v => v.Name).join(', ');
-        return `This image contains inappropriate content (${violationTypes}). Please upload a different image.`;
-      }
-
-      return '';
-    } catch (error) {
-      console.error('Rekognition S3 moderation error:', error);
-      return ''; // Fallback: allow image if API fails
-    }
-  };
 
   useEffect(() => {
     // Clear moderation warning when user edits message
@@ -410,11 +463,11 @@ const Community = () => {
         }
       }
 
-      // Run NSFW detection on images using Amazon Rekognition
-      if (mediaFile && mediaType === 'image') {
-        const imageViolation = await moderateImageWithRekognition(mediaFile);
-        if (imageViolation) {
-          setModWarning(imageViolation);
+      // Run content moderation on images and videos using Sightengine API
+      if (mediaFile && (mediaType === 'image' || mediaType === 'video')) {
+        const mediaViolation = await moderateMediaWithSightengine(mediaFile);
+        if (mediaViolation) {
+          setModWarning(mediaViolation);
           setProcessing(false);
           return;
         }
@@ -829,7 +882,7 @@ const Community = () => {
                           className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                         <label className="px-2 py-1 border border-gray-300 rounded-lg text-gray-700 cursor-pointer hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                          {processing ? 'Moderating...' : uploading ? 'Uploading...' : 'Upload'}
+                          {processing ? 'Checking content...' : uploading ? 'Uploading...' : 'Upload Media'}
                           <input type="file" accept="image/*,video/*" className="hidden" onChange={handleUploadMedia} disabled={uploading || processing} />
                         </label>
                         <button
@@ -837,7 +890,7 @@ const Community = () => {
                           disabled={processing || uploading}
                           className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
                         >
-                          {processing ? 'Moderating...' : 'Send'}
+                          {processing ? 'Checking...' : 'Send'}
                         </button>
                       </div>
                     </div>
