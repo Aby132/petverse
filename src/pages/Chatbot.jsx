@@ -64,7 +64,7 @@ const Chatbot = () => {
   const chatEndRef = useRef(null);
   const API_KEY = "AIzaSyAywhccPmyHxbbK_D5hhM6n7tC8PnX_El0";
   const [factIdx, setFactIdx] = useState(Math.floor(Math.random() * funFacts.length));
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 640);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
 
   // Map-related states
   const [userLocation, setUserLocation] = useState(null);
@@ -454,8 +454,11 @@ const Chatbot = () => {
   // Responsive sidebar toggle for mobile
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 640) setSidebarOpen(false);
-      else setSidebarOpen(true);
+      if (window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -796,125 +799,128 @@ const Chatbot = () => {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-blue-50 to-green-100 flex flex-col sm:flex-row items-stretch">
+    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-blue-50 to-green-100 flex flex-col lg:flex-row items-stretch">
+      {/* Mobile overlay */}
+      {sidebarOpen && window.innerWidth < 1024 && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
       {/* Sidebar with logo, welcome, tips, fun fact */}
       <aside
-        className={`transition-all duration-300 fixed sm:static z-30 top-0 left-0 h-full sm:h-full bg-white/90 border-r border-blue-100 shadow-lg flex flex-col items-center py-6 px-4 gap-4 overflow-y-auto
-        ${sidebarOpen ? 'w-4/5 sm:w-80' : 'w-16 sm:w-16'}
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'}
-        sm:relative sm:translate-x-0`}
-        style={{ minWidth: sidebarOpen ? undefined : 64 }}
+        className={`transition-all duration-300 fixed lg:static z-30 top-0 left-0 h-full bg-white/95 backdrop-blur-sm border-r border-blue-100 shadow-xl flex flex-col items-center py-4 lg:py-6 px-3 lg:px-4 gap-3 lg:gap-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100
+        ${sidebarOpen ? 'w-80 sm:w-96 lg:w-80' : 'w-0 lg:w-16'}
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         <div className="flex flex-col items-center w-full">
-          <div className="mb-2">{PETBOT_LOGO}</div>
+          <div className="mb-2 scale-75 lg:scale-100">{PETBOT_LOGO}</div>
           <button
-            className="sm:absolute sm:right-2 sm:top-2 absolute right-2 top-2 bg-blue-100 hover:bg-blue-200 rounded-full p-1 text-blue-700 focus:outline-none"
+            className="absolute right-2 top-2 lg:static lg:ml-auto bg-blue-100 hover:bg-blue-200 rounded-full p-1.5 lg:p-1 text-blue-700 focus:outline-none transition-colors"
             onClick={() => setSidebarOpen((v) => !v)}
             aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {sidebarOpen ? (
-              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>
             ) : (
-              <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
             )}
           </button>
         </div>
         {sidebarOpen && (
           <>
-            <h2 className="text-xl font-bold text-blue-900 mb-1 mt-2">PetCare AI</h2>
-            <p className="text-gray-600 text-center mb-2">Your friendly pet health & product assistant. Ask me anything about your pet's care, nutrition, behavior, or find nearby services!</p>
+            <h2 className="text-lg lg:text-xl font-bold text-blue-900 mb-1 mt-2">PetCare AI</h2>
+            <p className="text-gray-600 text-center mb-2 text-sm lg:text-base leading-relaxed">Your friendly pet health & product assistant. Ask me anything about your pet's care, nutrition, behavior, or find nearby services!</p>
             <div className="w-full mt-4">
-              <h3 className="font-semibold text-blue-700 mb-1">Tips for Best Results:</h3>
-              <ul className="list-disc list-inside text-xs text-gray-700 space-y-1">
+              <h3 className="font-semibold text-blue-700 mb-2 text-sm">Tips for Best Results:</h3>
+              <ul className="list-disc list-inside text-xs lg:text-sm text-gray-700 space-y-1.5">
                 <li>Be specific about your pet's species, age, and symptoms.</li>
                 <li>Ask one question at a time for detailed answers.</li>
                 <li>Try the quick action buttons for common topics!</li>
                 <li>Ask "Find nearest vet" or "Find pet stores in [city]" to locate services.</li>
               </ul>
             </div>
-            <div className="w-full mt-4 bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800 text-center">
+            <div className="w-full mt-4 bg-green-50 border border-green-200 rounded-lg p-3 text-xs lg:text-sm text-green-800 text-center">
               <span className="font-semibold">🐶 Fun Pet Fact:</span><br />
-              {funFacts[factIdx]}
-              <button className="ml-2 text-blue-500 underline text-xs" onClick={() => setFactIdx((factIdx + 1) % funFacts.length)}>Next fact</button>
+              <span className="block mt-1">{funFacts[factIdx]}</span>
+              <button className="mt-2 text-blue-500 underline text-xs hover:text-blue-700 transition-colors" onClick={() => setFactIdx((factIdx + 1) % funFacts.length)}>Next fact</button>
             </div>
             <div className="mt-auto text-xs text-gray-400 pt-4 border-t w-full text-center">&copy; {new Date().getFullYear()} PetCare AI | Made with ❤️ for pets</div>
           </>
         )}
       </aside>
       {/* Main chat area */}
-      <main className="flex-1 flex flex-col bg-white rounded-3xl shadow-2xl p-0 sm:p-6 h-full min-h-0 overflow-hidden">
+      <main className="flex-1 flex flex-col bg-white rounded-none lg:rounded-3xl shadow-xl lg:shadow-2xl p-0 lg:p-6 h-full min-h-0 overflow-hidden">
         {/* Header with sidebar toggle for mobile */}
-        <header className="w-full bg-white/80 backdrop-blur border-b border-blue-100 shadow-sm flex items-center justify-between py-3 mb-2 px-4 sm:px-0 flex-shrink-0">
+        <header className="w-full bg-white/90 backdrop-blur border-b border-blue-100 shadow-sm flex items-center justify-between py-3 lg:py-4 mb-2 px-4 lg:px-0 flex-shrink-0">
           <div className="flex items-center">
-            {window.innerWidth < 640 && (
-              <button
-                className="mr-2 bg-blue-100 hover:bg-blue-200 rounded-full p-1 text-blue-700 focus:outline-none"
-                onClick={() => setSidebarOpen((v) => !v)}
-                aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-              >
-                {sidebarOpen ? (
-                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></svg>
-                ) : (
-                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
-                )}
-              </button>
-            )}
-            <span className="text-3xl mr-2">🐾</span>
-            <h1 className="text-2xl font-bold text-blue-900 tracking-tight">PetCare AI Chatbot</h1>
+            <button
+              className="mr-3 lg:hidden bg-blue-100 hover:bg-blue-200 rounded-full p-2 text-blue-700 focus:outline-none transition-colors"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <path d="M3 12h18M3 6h18M3 18h18"/>
+              </svg>
+            </button>
+            <span className="text-2xl lg:text-3xl mr-2">🐾</span>
+            <h1 className="text-lg lg:text-2xl font-bold text-blue-900 tracking-tight">PetCare AI Chatbot</h1>
           </div>
         </header>
         {/* Chat window with collapsible Q&A pairs */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          <div className="flex-1 overflow-y-auto px-2 sm:px-0 py-4 space-y-3 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-3 lg:px-0 py-3 lg:py-4 space-y-2 lg:space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             {qaPairs.map((pair, idx) => (
               <div key={idx} className="mb-2">
                 {/* User bubble (right) */}
                 {pair[0].sender === "user" && (
-                  <div className="flex justify-end items-center gap-2 cursor-pointer group" onClick={() => pair.length === 2 && toggleExpand(chat.indexOf(pair[0]))}>
-                    <div className="flex flex-col items-end">
+                  <div className="flex justify-end items-start gap-2 cursor-pointer group" onClick={() => pair.length === 2 && toggleExpand(chat.indexOf(pair[0]))}>
+                    <div className="flex flex-col items-end max-w-[85%] lg:max-w-lg">
                       <div className="flex items-center mb-1">
-                        <span className="font-semibold text-blue-700 mr-2">You</span>
+                        <span className="font-semibold text-blue-700 mr-2 text-sm">You</span>
                         <span className="text-xs text-gray-400">{pair[0].time}</span>
-                        <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-lg font-bold ml-2">
+                        <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-blue-200 flex items-center justify-center text-sm lg:text-lg font-bold ml-2">
                           <span role="img" aria-label="User">🧑</span>
                         </div>
                       </div>
-                      <div className={`bg-blue-600 text-white px-5 py-3 rounded-2xl shadow-lg text-base whitespace-pre-line max-w-lg ${pair[0].expanded ? '' : 'max-h-8 overflow-hidden'}`}>{pair[0].text}</div>
+                      <div className={`bg-blue-600 text-white px-3 lg:px-5 py-2 lg:py-3 rounded-2xl shadow-lg text-sm lg:text-base whitespace-pre-line ${pair[0].expanded ? '' : 'max-h-8 overflow-hidden'}`}>{pair[0].text}</div>
                     </div>
-                    <span className="ml-2 text-gray-400 text-xs group-hover:underline">{pair.length === 2 ? (pair[0].expanded ? 'Collapse' : 'Expand') : ''}</span>
+                    <span className="ml-2 text-gray-400 text-xs group-hover:underline hidden lg:block">{pair.length === 2 ? (pair[0].expanded ? 'Collapse' : 'Expand') : ''}</span>
                   </div>
                 )}
                 {/* Bot bubble (left) */}
                 {pair[1] && (
-                  <div className="flex justify-start items-center gap-2 mt-2">
-                    <div className="flex flex-col items-start">
+                  <div className="flex justify-start items-start gap-2 mt-2">
+                    <div className="flex flex-col items-start max-w-[85%] lg:max-w-lg">
                       <div className="flex items-center mb-1">
-                        <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center text-lg font-bold mr-2">
+                        <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-green-200 flex items-center justify-center text-sm lg:text-lg font-bold mr-2">
                           <span role="img" aria-label="Bot">🤖</span>
                         </div>
-                        <span className="font-semibold text-green-700">PetBot</span>
+                        <span className="font-semibold text-green-700 text-sm">PetBot</span>
                         <span className="ml-2 text-xs text-gray-400">{pair[1].time}</span>
                       </div>
-                      <div className={`bg-green-50 text-green-900 px-5 py-3 rounded-2xl shadow-lg text-base whitespace-pre-line max-w-lg ${pair[0].expanded ? '' : 'max-h-8 overflow-hidden'}`} dangerouslySetInnerHTML={{ __html: formatText(pair[1].text) }}></div>
+                      <div className={`bg-green-50 text-green-900 px-3 lg:px-5 py-2 lg:py-3 rounded-2xl shadow-lg text-sm lg:text-base whitespace-pre-line ${pair[0].expanded ? '' : 'max-h-8 overflow-hidden'}`} dangerouslySetInnerHTML={{ __html: formatText(pair[1].text) }}></div>
                       
                       {/* Map for location responses */}
                       {showMap && userLocation && (
-                        <div className="mt-4 w-full max-w-lg">
-                          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-                            <div className="p-4 border-b border-gray-100">
+                        <div className="mt-3 lg:mt-4 w-full">
+                          <div className="bg-white rounded-xl lg:rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                            <div className="p-3 lg:p-4 border-b border-gray-100">
                               <div className="flex items-center justify-between">
-                                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <h4 className="font-semibold text-gray-900 flex items-center gap-1 lg:gap-2 text-sm lg:text-base">
                                   <span>🗺️</span>
-                                  Nearby Pet Services
+                                  <span className="hidden sm:inline">Nearby Pet Services</span>
+                                  <span className="sm:hidden">Services</span>
                                   {mapLocations.length > 0 && (
-                                    <span className="text-sm text-gray-500 font-normal">
-                                      ({mapLocations.length} found)
+                                    <span className="text-xs lg:text-sm text-gray-500 font-normal">
+                                      ({mapLocations.length})
                                     </span>
                                   )}
                                 </h4>
                                 <button
                                   onClick={() => setShowMap(false)}
-                                  className="text-gray-400 hover:text-gray-600 text-sm"
+                                  className="text-gray-400 hover:text-gray-600 text-sm p-1"
                                   title="Hide map"
                                 >
                                   ✕
@@ -927,24 +933,24 @@ const Chatbot = () => {
                                     userLocation.accuracy <= 100 ? 'bg-yellow-100 text-yellow-700' :
                                     'bg-orange-100 text-orange-700'
                                   }`}>
-                                    📍 Location accuracy: {Math.round(userLocation.accuracy)} meters
+                                    📍 <span className="hidden sm:inline">Location accuracy: </span>{Math.round(userLocation.accuracy)}m
                                   </span>
                                 </div>
                               )}
                             </div>
-                            <div className="h-80 relative">
+                            <div className="h-60 lg:h-80 relative">
                               {mapLoading && (
                                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-50">
                                   <div className="text-center">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                                    <p className="text-sm text-gray-600">Finding nearby services...</p>
+                                    <div className="animate-spin rounded-full h-6 w-6 lg:h-8 lg:w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                                    <p className="text-xs lg:text-sm text-gray-600">Finding nearby services...</p>
                                   </div>
                                 </div>
                               )}
                               {!mapLoading && mapLocations.length === 0 && (
                                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-50">
                                   <div className="text-center">
-                                    <p className="text-sm text-gray-600">No locations found</p>
+                                    <p className="text-xs lg:text-sm text-gray-600">No locations found</p>
                                     <p className="text-xs text-gray-500 mt-1">Debug: {mapLocations.length} locations</p>
                                   </div>
                                 </div>
@@ -1028,16 +1034,16 @@ const Chatbot = () => {
                                     }}
                                     onCloseClick={() => setSelectedLocation(null)}
                                   >
-                                    <div className="max-w-xs">
+                                    <div className="max-w-[280px] lg:max-w-xs">
                                       {/* Header with name and type */}
                                       <div className="flex items-start justify-between mb-2">
-                                        <div className="flex-1">
-                                          <div className="font-bold text-sm text-gray-900 leading-tight mb-1">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-bold text-xs lg:text-sm text-gray-900 leading-tight mb-1 truncate">
                                             {selectedLocation.name}
                                           </div>
                                           <div className="flex items-center gap-1">
                                             <span className="text-xs">{getServiceTypeInfo(selectedLocation.serviceType).icon}</span>
-                                            <span className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-2 py-0.5 rounded-full text-xs font-medium">
+                                            <span className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-1.5 lg:px-2 py-0.5 rounded-full text-xs font-medium">
                                               {getServiceTypeInfo(selectedLocation.serviceType).label}
                                             </span>
                                           </div>
@@ -1045,15 +1051,15 @@ const Chatbot = () => {
                                       </div>
                                       
                                       {/* Compact info row */}
-                                      <div className="flex items-center justify-between mb-3 text-xs">
+                                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-3 text-xs space-y-1 lg:space-y-0">
                                         {selectedLocation.vicinity && (
-                                          <div className="text-gray-500 flex items-center gap-1 flex-1">
-                                            <span>📍</span>
-                                            <span className="truncate">{selectedLocation.vicinity}</span>
+                                          <div className="text-gray-500 flex items-start lg:items-center gap-1 flex-1 min-w-0">
+                                            <span className="flex-shrink-0">📍</span>
+                                            <span className="truncate text-xs">{selectedLocation.vicinity}</span>
                                           </div>
                                         )}
                                         {selectedLocation.rating && (
-                                          <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                          <div className="flex items-center gap-1 flex-shrink-0">
                                             <span className="text-yellow-500">⭐</span>
                                             <span className="font-medium">{selectedLocation.rating}</span>
                                             {selectedLocation.user_ratings_total && (
@@ -1065,7 +1071,7 @@ const Chatbot = () => {
                                       
                                       {/* Action button */}
                                       <button
-                                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
+                                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-2 lg:px-3 py-1.5 lg:py-2 rounded-lg text-xs font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
                                         onClick={() => handleNavigate(selectedLocation)}
                                       >
                                         🗺️ Get Directions
@@ -1084,22 +1090,22 @@ const Chatbot = () => {
                 )}
                 {/* If only bot message (welcome) */}
                 {pair[0].sender === "bot" && !pair[1] && (
-                  <div className="flex justify-start items-center gap-2">
-                    <div className="flex flex-col items-start">
+                  <div className="flex justify-start items-start gap-2">
+                    <div className="flex flex-col items-start max-w-[85%] lg:max-w-lg">
                       <div className="flex items-center mb-1">
-                        <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center text-lg font-bold mr-2">
+                        <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-green-200 flex items-center justify-center text-sm lg:text-lg font-bold mr-2">
                           <span role="img" aria-label="Bot">🤖</span>
                         </div>
-                        <span className="font-semibold text-green-700">PetBot</span>
+                        <span className="font-semibold text-green-700 text-sm">PetBot</span>
                         <span className="ml-2 text-xs text-gray-400">{pair[0].time}</span>
                       </div>
-                      <div className="bg-green-50 text-green-900 px-5 py-3 rounded-2xl shadow-lg text-base whitespace-pre-line max-w-lg" dangerouslySetInnerHTML={{ __html: formatText(pair[0].text) }}></div>
+                      <div className="bg-green-50 text-green-900 px-3 lg:px-5 py-2 lg:py-3 rounded-2xl shadow-lg text-sm lg:text-base whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formatText(pair[0].text) }}></div>
                     </div>
                   </div>
                 )}
                 {pair[1] && pair[1].sender === 'bot' && pair[1].showDiscover && (
                   <div className="mt-2 flex justify-start">
-                    <Link to="/discover" className="inline-block bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-xl">
+                    <Link to="/discover" className="inline-block bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg lg:rounded-xl text-xs lg:text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-xl">
                       Open Discover
                     </Link>
                   </div>
@@ -1107,11 +1113,11 @@ const Chatbot = () => {
               </div>
             ))}
             {loading && (
-              <div className="flex items-center gap-2 ml-10 mt-2">
-                <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center text-lg font-bold mr-2">
+              <div className="flex items-center gap-2 ml-6 lg:ml-10 mt-2">
+                <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-green-200 flex items-center justify-center text-sm lg:text-lg font-bold mr-2">
                   <span role="img" aria-label="Bot">🤖</span>
                 </div>
-                <div className="bg-green-50 text-green-900 px-4 py-2 rounded-2xl shadow-sm text-sm animate-pulse">
+                <div className="bg-green-50 text-green-900 px-3 lg:px-4 py-2 rounded-2xl shadow-sm text-xs lg:text-sm animate-pulse">
                   {mapLoading ? 'Finding nearby services...' : 'PetBot is typing...'}
                 </div>
               </div>
@@ -1120,43 +1126,56 @@ const Chatbot = () => {
           </div>
         </div>
         {/* Floating quick action bar */}
-        <div className="bg-white/90 py-2 px-2 rounded-b-3xl border-t border-blue-100 shadow-inner flex-shrink-0">
-          <div className="flex flex-wrap gap-2 justify-center mb-2">
-            {quickActions.map((q, idx) => (
+        <div className="bg-white/95 backdrop-blur-sm py-3 lg:py-2 px-3 lg:px-2 rounded-none lg:rounded-b-3xl border-t border-blue-100 shadow-inner flex-shrink-0">
+          <div className="flex flex-wrap gap-1.5 lg:gap-2 justify-center mb-3 lg:mb-2">
+            {quickActions.slice(0, window.innerWidth < 768 ? 4 : 6).map((q, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSend(q)}
-                className="bg-gradient-to-br from-blue-100 to-green-100 hover:from-blue-200 hover:to-green-200 text-gray-700 px-3 py-2 rounded-full text-xs border border-gray-200 hover:border-blue-400 transition-colors min-w-[120px] min-h-[40px]"
+                className="bg-gradient-to-br from-blue-100 to-green-100 hover:from-blue-200 hover:to-green-200 text-gray-700 px-2 lg:px-3 py-1.5 lg:py-2 rounded-full text-xs border border-gray-200 hover:border-blue-400 transition-colors min-w-[100px] lg:min-w-[120px] min-h-[36px] lg:min-h-[40px] flex-shrink-0"
                 disabled={loading}
               >
                 {q}
               </button>
             ))}
+            {window.innerWidth < 768 && quickActions.length > 4 && (
+              <button
+                onClick={() => {/* Show more actions */}}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1.5 rounded-full text-xs border border-gray-200 hover:border-gray-400 transition-colors min-w-[80px] min-h-[36px] flex-shrink-0"
+              >
+                More...
+              </button>
+            )}
           </div>
           {/* Input area */}
-          <div className="flex gap-2 pb-2 sm:pb-0">
+          <div className="flex gap-2 pb-2 lg:pb-0">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-base"
-              placeholder="Ask about pet health, nutrition, behavior, products, or find nearby services..."
+              className="flex-1 px-3 lg:px-4 py-2.5 lg:py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-sm lg:text-base"
+              placeholder="Ask about pet health, nutrition, behavior..."
               disabled={loading}
             />
             <button
               onClick={() => handleSend()}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold transition-colors disabled:bg-blue-300 text-base"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 lg:px-6 py-2.5 lg:py-3 rounded-full font-semibold transition-colors disabled:bg-blue-300 text-sm lg:text-base flex-shrink-0"
               disabled={loading || !input.trim()}
             >
-              {loading ? "Sending..." : "Send"}
+              {loading ? "..." : "Send"}
             </button>
           </div>
-          {error && <div className="text-red-500 text-xs mt-2 text-center">{error}</div>}
+          {error && <div className="text-red-500 text-xs mt-2 text-center px-2">{error}</div>}
         </div>
-        <footer className="mt-2 text-center text-xs text-gray-400 flex-shrink-0">
-          ⚠️ This AI assistant provides general pet care and product information only.<br />For emergencies or specific health concerns, always consult a licensed veterinarian.<br />
-          <a href="https://www.aspca.org/pet-care" className="underline text-blue-500" target="_blank" rel="noopener noreferrer">More pet care resources</a>
+        <footer className="mt-2 px-4 lg:px-0 text-center text-xs text-gray-400 flex-shrink-0">
+          <div className="space-y-1">
+            <p>⚠️ This AI assistant provides general pet care and product information only.</p>
+            <p>For emergencies or specific health concerns, always consult a licensed veterinarian.</p>
+            <p>
+              <a href="https://www.aspca.org/pet-care" className="underline text-blue-500 hover:text-blue-700" target="_blank" rel="noopener noreferrer">More pet care resources</a>
+            </p>
+          </div>
         </footer>
       </main>
     </div>
