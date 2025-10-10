@@ -1,7 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
-import { marked } from 'marked';
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 import { Link } from 'react-router-dom';
+
+// Simple function to convert basic markdown-like formatting to HTML
+const formatText = (text) => {
+  if (!text) return '';
+  
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
+    .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic text
+    .replace(/`(.*?)`/g, '<code>$1</code>') // Inline code
+    .replace(/\n/g, '<br>'); // Line breaks
+};
 
 const PETBOT_LOGO = (
   <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -885,7 +895,7 @@ const Chatbot = () => {
                         <span className="font-semibold text-green-700">PetBot</span>
                         <span className="ml-2 text-xs text-gray-400">{pair[1].time}</span>
                       </div>
-                      <div className={`bg-green-50 text-green-900 px-5 py-3 rounded-2xl shadow-lg text-base whitespace-pre-line max-w-lg ${pair[0].expanded ? '' : 'max-h-8 overflow-hidden'}`} dangerouslySetInnerHTML={{ __html: marked(pair[1].text) }}></div>
+                      <div className={`bg-green-50 text-green-900 px-5 py-3 rounded-2xl shadow-lg text-base whitespace-pre-line max-w-lg ${pair[0].expanded ? '' : 'max-h-8 overflow-hidden'}`} dangerouslySetInnerHTML={{ __html: formatText(pair[1].text) }}></div>
                       
                       {/* Map for location responses */}
                       {showMap && userLocation && (
@@ -1083,7 +1093,7 @@ const Chatbot = () => {
                         <span className="font-semibold text-green-700">PetBot</span>
                         <span className="ml-2 text-xs text-gray-400">{pair[0].time}</span>
                       </div>
-                      <div className="bg-green-50 text-green-900 px-5 py-3 rounded-2xl shadow-lg text-base whitespace-pre-line max-w-lg" dangerouslySetInnerHTML={{ __html: marked(pair[0].text) }}></div>
+                      <div className="bg-green-50 text-green-900 px-5 py-3 rounded-2xl shadow-lg text-base whitespace-pre-line max-w-lg" dangerouslySetInnerHTML={{ __html: formatText(pair[0].text) }}></div>
                     </div>
                   </div>
                 )}
