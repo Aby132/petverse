@@ -1,7 +1,13 @@
 class AnimalService {
   constructor(user) {
     this.user = user;
-    this.baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+    // Force the correct URL for now
+    this.baseUrl = 'https://gk394j27jg.execute-api.us-east-1.amazonaws.com/prod';
+    
+    // Debug logging
+    console.log('AnimalService initialized with baseUrl:', this.baseUrl);
+    console.log('Environment variable REACT_APP_ANIMAL_API_URL:', process.env.REACT_APP_ANIMAL_API_URL);
+    console.log('All environment variables:', Object.keys(process.env).filter(key => key.startsWith('REACT_APP')));
   }
 
   // Get authentication headers
@@ -21,7 +27,10 @@ class AnimalService {
   // Get all animals
   async getAnimals() {
     try {
-      const response = await fetch(`${this.baseUrl}/animals`, {
+      const url = `${this.baseUrl}/animals`;
+      console.log('Fetching animals from URL:', url);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: this.getHeaders(),
       });
@@ -34,63 +43,141 @@ class AnimalService {
       return data.animals || data || [];
     } catch (error) {
       console.error('Error fetching animals:', error);
+      console.error('Base URL being used:', this.baseUrl);
       // Return mock data for development
       return this.getMockAnimals();
     }
   }
 
+  // Helper function to convert file to base64
+  async fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+  }
+
   // Add a new animal
-  async addAnimal(animalData, imageFile, healthRecordFile) {
+  async addAnimal(animalData, imageFiles, healthRecordFile) {
     try {
-      const formData = new FormData();
-      
-      // Add animal data
-      Object.keys(animalData).forEach(key => {
-        if (animalData[key] !== '') {
-          formData.append(key, animalData[key]);
-        }
+      console.log('Starting addAnimal with:', {
+        animalData: animalData,
+        imageFilesCount: imageFiles?.length || 0,
+        healthRecordFile: healthRecordFile?.name || 'none'
       });
 
-      // Add files if provided
-      if (imageFile) {
-        formData.append('image', imageFile);
+      const requestBody = {
+        ...animalData,
+        images: [],
+        healthRecord: null
+      };
+
+      // Process image files
+      if (imageFiles && imageFiles.length > 0) {
+        console.log('Processing', imageFiles.length, 'image files');
+        for (const file of imageFiles) {
+          console.log('Processing image file:', file.name, 'Type:', file.type, 'Size:', file.size);
+          const base64Data = await this.fileToBase64(file);
+          requestBody.images.push({
+            data: base64Data,
+            contentType: file.type,
+            extension: file.name.split('.').pop()
+          });
+        }
+        console.log('Processed', requestBody.images.length, 'images');
+      } else {
+        console.log('No image files to process');
       }
+
+      // Process health record file
       if (healthRecordFile) {
-        formData.append('healthRecord', healthRecordFile);
+        console.log('Processing health record file:', healthRecordFile.name, 'Type:', healthRecordFile.type, 'Size:', healthRecordFile.size);
+        const base64Data = await this.fileToBase64(healthRecordFile);
+        requestBody.healthRecord = {
+          data: base64Data,
+          contentType: healthRecordFile.type,
+          extension: healthRecordFile.name.split('.').pop()
+        };
+        console.log('Processed health record file');
+      } else {
+        console.log('No health record file to process');
       }
+
+      console.log('Sending request to:', `${this.baseUrl}/animals`);
+      console.log('Request body size:', JSON.stringify(requestBody).length, 'characters');
 
       const response = await fetch(`${this.baseUrl}/animals`, {
         method: 'POST',
-        headers: {
-          Authorization: this.getHeaders().Authorization,
-        },
-        body: formData,
+        headers: this.getHeaders(),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('Successfully created animal:', data);
       return data.animal || data;
     } catch (error) {
       console.error('Error adding animal:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       // Return mock data for development
       return this.createMockAnimal(animalData);
     }
   }
 
   // Update an animal
-  async updateAnimal(animalId, animalData) {
+  async updateAnimal(animalId, animalData, newImageFiles = [], newHealthRecordFile = null) {
     try {
+      const requestBody = {
+        ...animalData,
+        newImages: [],
+        newHealthRecord: null
+      };
+
+      // Process new image files
+      if (newImageFiles && newImageFiles.length > 0) {
+        for (const file of newImageFiles) {
+          const base64Data = await this.fileToBase64(file);
+          requestBody.newImages.push({
+            data: base64Data,
+            contentType: file.type,
+            extension: file.name.split('.').pop()
+          });
+        }
+      }
+
+      // Process new health record file
+      if (newHealthRecordFile) {
+        const base64Data = await this.fileToBase64(newHealthRecordFile);
+        requestBody.newHealthRecord = {
+          data: base64Data,
+          contentType: newHealthRecordFile.type,
+          extension: newHealthRecordFile.name.split('.').pop()
+        };
+      }
+
       const response = await fetch(`${this.baseUrl}/animals/${animalId}`, {
         method: 'PUT',
         headers: this.getHeaders(),
-        body: JSON.stringify(animalData),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
@@ -262,7 +349,8 @@ class AnimalService {
         emergencyContact: 'Jane Smith +1-555-0124',
         status: 'Healthy',
         notes: 'Friendly and energetic dog',
-        imageUrl: null,
+        imageUrls: [],
+        healthRecordUrl: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
@@ -283,7 +371,8 @@ class AnimalService {
         emergencyContact: 'Mike Johnson +1-555-0457',
         status: 'Checkup Due',
         notes: 'Indoor cat, needs annual checkup',
-        imageUrl: null,
+        imageUrls: [],
+        healthRecordUrl: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
@@ -304,7 +393,8 @@ class AnimalService {
         emergencyContact: 'Lisa Wilson +1-555-0790',
         status: 'Healthy',
         notes: 'Loves singing in the morning',
-        imageUrl: null,
+        imageUrls: [],
+        healthRecordUrl: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
@@ -315,7 +405,8 @@ class AnimalService {
     const newAnimal = {
       animalId: Date.now().toString(),
       ...animalData,
-      imageUrl: null,
+      imageUrls: [],
+      healthRecordUrl: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

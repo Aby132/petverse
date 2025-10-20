@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import AnimalService from '../../services/animalService';
 import { useAuth } from '../../contexts/AuthContext';
+import Swal from 'sweetalert2';
 
 const AdminAnimals = () => {
   const { user } = useAuth();
@@ -29,10 +30,19 @@ const AdminAnimals = () => {
     status: 'Healthy',
     notes: ''
   });
-  const [imageFile, setImageFile] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
   const [healthRecordFile, setHealthRecordFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState('');
+  const [imagePreviews, setImagePreviews] = useState([]);
   const [uploading, setUploading] = useState(false);
+  
+  // View and Edit modals
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedAnimal, setSelectedAnimal] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [editImagePreviews, setEditImagePreviews] = useState([]);
+  const [newImageFiles, setNewImageFiles] = useState([]);
+  const [newHealthRecordFile, setNewHealthRecordFile] = useState(null);
 
   // Initialize animal service
   useEffect(() => {
@@ -71,18 +81,58 @@ const AdminAnimals = () => {
   };
 
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onload = (e) => setImagePreview(e.target.result);
-      reader.readAsDataURL(file);
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      setImageFiles(prev => [...prev, ...files]);
+      
+      // Generate previews for new files
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setImagePreviews(prev => [...prev, {
+            file,
+            preview: e.target.result,
+            id: Date.now() + Math.random()
+          }]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+  };
+
+  const removeImage = (index) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleHealthRecordUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Validate file type
+      if (file.type !== 'application/pdf') {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid File Type',
+          text: 'Please select a PDF file for health records.',
+          confirmButtonText: 'OK'
+        });
+        e.target.value = ''; // Clear the input
+        return;
+      }
+      
+      // Validate file size (10MB = 10 * 1024 * 1024 bytes)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        Swal.fire({
+          icon: 'error',
+          title: 'File Too Large',
+          text: 'Health record file must be less than 10MB.',
+          confirmButtonText: 'OK'
+        });
+        e.target.value = ''; // Clear the input
+        return;
+      }
+      
       setHealthRecordFile(file);
     }
   };
@@ -97,11 +147,16 @@ const AdminAnimals = () => {
 
       // Validate required fields
       if (!formData.name || !formData.type || !formData.ownerName) {
-        setError('Please fill in all required fields');
+        Swal.fire({
+          icon: 'warning',
+          title: 'Missing Required Fields',
+          text: 'Please fill in all required fields (Name, Type, and Owner Name).',
+          confirmButtonText: 'OK'
+        });
         return;
       }
 
-      const newAnimal = await animalService.addAnimal(formData, imageFile, healthRecordFile);
+      const newAnimal = await animalService.addAnimal(formData, imageFiles, healthRecordFile);
       
       // Add to local state
       setAnimals(prev => [...prev, newAnimal]);
@@ -124,14 +179,171 @@ const AdminAnimals = () => {
         status: 'Healthy',
         notes: ''
       });
-      setImageFile(null);
+      setImageFiles([]);
       setHealthRecordFile(null);
-      setImagePreview('');
+      setImagePreviews([]);
       setShowAddModal(false);
       
+      // Show success message
+      Swal.fire({
+        icon: 'success',
+        title: 'Success!',
+        text: 'Animal added successfully!',
+        confirmButtonText: 'OK'
+      });
+      
     } catch (err) {
-      setError('Failed to add animal');
       console.error('Add animal error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Failed to add animal. Please try again.',
+        confirmButtonText: 'OK'
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleViewAnimal = (animal) => {
+    setSelectedAnimal(animal);
+    setShowViewModal(true);
+  };
+
+  const handleEditAnimal = (animal) => {
+    setSelectedAnimal(animal);
+    setEditFormData({
+      name: animal.name,
+      type: animal.type,
+      breed: animal.breed,
+      age: animal.age,
+      gender: animal.gender,
+      weight: animal.weight,
+      color: animal.color,
+      microchipId: animal.microchipId,
+      ownerName: animal.ownerName,
+      ownerEmail: animal.ownerEmail,
+      ownerPhone: animal.ownerPhone,
+      address: animal.address,
+      emergencyContact: animal.emergencyContact,
+      status: animal.status,
+      notes: animal.notes
+    });
+    setEditImagePreviews(animal.imageUrls || []);
+    setNewImageFiles([]);
+    setNewHealthRecordFile(null);
+    setShowEditModal(true);
+  };
+
+  const handleEditInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleNewImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      setNewImageFiles(prev => [...prev, ...files]);
+      
+      // Generate previews for new files
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setEditImagePreviews(prev => [...prev, {
+            file,
+            preview: e.target.result,
+            id: Date.now() + Math.random(),
+            isNew: true
+          }]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removeEditImage = (index) => {
+    setEditImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleNewHealthRecordUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (file.type !== 'application/pdf') {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid File Type',
+          text: 'Please select a PDF file for health records.',
+          confirmButtonText: 'OK'
+        });
+        e.target.value = ''; // Clear the input
+        return;
+      }
+      
+      // Validate file size (10MB = 10 * 1024 * 1024 bytes)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        Swal.fire({
+          icon: 'error',
+          title: 'File Too Large',
+          text: 'Health record file must be less than 10MB.',
+          confirmButtonText: 'OK'
+        });
+        e.target.value = ''; // Clear the input
+        return;
+      }
+      
+      setNewHealthRecordFile(file);
+    }
+  };
+
+  const handleUpdateAnimal = async (e) => {
+    e.preventDefault();
+    if (!animalService || !selectedAnimal) return;
+
+    try {
+      setUploading(true);
+      setError('');
+
+      const updatedAnimal = await animalService.updateAnimal(
+        selectedAnimal.animalId,
+        editFormData,
+        newImageFiles,
+        newHealthRecordFile
+      );
+      
+      // Update local state
+      setAnimals(prev => prev.map(animal => 
+        animal.animalId === selectedAnimal.animalId ? updatedAnimal : animal
+      ));
+      
+      // Reset edit form
+      setEditFormData({});
+      setEditImagePreviews([]);
+      setNewImageFiles([]);
+      setNewHealthRecordFile(null);
+      setShowEditModal(false);
+      setSelectedAnimal(null);
+      
+      // Show success message
+      Swal.fire({
+        icon: 'success',
+        title: 'Success!',
+        text: 'Animal updated successfully!',
+        confirmButtonText: 'OK'
+      });
+      
+    } catch (err) {
+      console.error('Update animal error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Failed to update animal. Please try again.',
+        confirmButtonText: 'OK'
+      });
     } finally {
       setUploading(false);
     }
@@ -139,14 +351,40 @@ const AdminAnimals = () => {
 
   const handleDeleteAnimal = async (animalId) => {
     if (!animalService) return;
-    if (!window.confirm('Are you sure you want to delete this animal?')) return;
+    
+    // Use SweetAlert for confirmation
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
       await animalService.deleteAnimal(animalId);
       setAnimals(prev => prev.filter(animal => animal.animalId !== animalId));
+      
+      // Show success message
+      Swal.fire({
+        icon: 'success',
+        title: 'Deleted!',
+        text: 'Animal has been deleted successfully.',
+        confirmButtonText: 'OK'
+      });
     } catch (err) {
-      setError('Failed to delete animal');
       console.error('Delete animal error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Failed to delete animal. Please try again.',
+        confirmButtonText: 'OK'
+      });
     }
   };
 
@@ -295,8 +533,8 @@ const AdminAnimals = () => {
                       <td className="py-4 px-6">
                         <div className="flex items-center">
                           <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3 overflow-hidden">
-                            {animal.imageUrl ? (
-                              <img src={animal.imageUrl} alt={animal.name} className="w-full h-full object-cover" />
+                            {animal.imageUrls && animal.imageUrls.length > 0 ? (
+                              <img src={animal.imageUrls[0]} alt={animal.name} className="w-full h-full object-cover" />
                             ) : (
                               <span className="text-lg">
                                 {animal.type === 'Dog' ? '🐕' : 
@@ -309,6 +547,9 @@ const AdminAnimals = () => {
                           <div>
                             <p className="font-medium text-gray-900">{animal.name}</p>
                             <p className="text-sm text-gray-500">ID: {animal.animalId}</p>
+                            {animal.imageUrls && animal.imageUrls.length > 1 && (
+                              <p className="text-xs text-blue-600">+{animal.imageUrls.length - 1} more images</p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -332,12 +573,21 @@ const AdminAnimals = () => {
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-800 text-sm">View</button>
-                          <button className="text-green-600 hover:text-green-800 text-sm">Edit</button>
-                          <button className="text-purple-600 hover:text-purple-800 text-sm">Health</button>
+                          <button 
+                            onClick={() => handleViewAnimal(animal)}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            View
+                          </button>
+                          <button 
+                            onClick={() => handleEditAnimal(animal)}
+                            className="text-green-600 hover:text-green-800 text-sm font-medium"
+                          >
+                            Edit
+                          </button>
                           <button 
                             onClick={() => handleDeleteAnimal(animal.animalId)}
-                            className="text-red-600 hover:text-red-800 text-sm"
+                            className="text-red-600 hover:text-red-800 text-sm font-medium"
                           >
                             Delete
                           </button>
@@ -649,16 +899,41 @@ const AdminAnimals = () => {
                 <h4 className="text-md font-medium text-gray-900 mb-3">Upload Files</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Animal Photo</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Animal Photos (Multiple)
+                    </label>
                     <input
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={handleImageUpload}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2"
                     />
-                    {imagePreview && (
-                      <div className="mt-2">
-                        <img src={imagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-lg" />
+                    <p className="text-xs text-gray-500 mt-1">You can select multiple images at once</p>
+                    
+                    {/* Image Previews */}
+                    {imagePreviews.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Selected Images ({imagePreviews.length}):</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {imagePreviews.map((preview, index) => (
+                            <div key={preview.id} className="relative">
+                              <img 
+                                src={preview.preview} 
+                                alt={`Preview ${index + 1}`} 
+                                className="w-full h-20 object-cover rounded-lg border border-gray-200" 
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeImage(index)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                              >
+                                ×
+                              </button>
+                              <p className="text-xs text-gray-500 mt-1 truncate">{preview.file.name}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -666,10 +941,11 @@ const AdminAnimals = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Health Records</label>
                     <input
                       type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      accept=".pdf"
                       onChange={handleHealthRecordUpload}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Only PDF files allowed, maximum 10MB</p>
                     {healthRecordFile && (
                       <p className="text-sm text-gray-600 mt-1">Selected: {healthRecordFile.name}</p>
                     )}
@@ -692,6 +968,454 @@ const AdminAnimals = () => {
                   className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400"
                 >
                   {uploading ? 'Adding...' : 'Add Animal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Animal Modal */}
+      {showViewModal && selectedAnimal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Animal Details</h3>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Animal Images */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 mb-4">Photos</h4>
+                {selectedAnimal.imageUrls && selectedAnimal.imageUrls.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedAnimal.imageUrls.map((imageUrl, index) => (
+                      <img
+                        key={index}
+                        src={imageUrl}
+                        alt={`${selectedAnimal.name} photo ${index + 1}`}
+                        className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <span className="text-4xl">📷</span>
+                    <p>No photos available</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Animal Information */}
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Basic Information</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Name:</span>
+                      <p className="text-gray-900">{selectedAnimal.name}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Type:</span>
+                      <p className="text-gray-900">{selectedAnimal.type}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Breed:</span>
+                      <p className="text-gray-900">{selectedAnimal.breed || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Age:</span>
+                      <p className="text-gray-900">{selectedAnimal.age || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Gender:</span>
+                      <p className="text-gray-900">{selectedAnimal.gender || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Weight:</span>
+                      <p className="text-gray-900">{selectedAnimal.weight || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Color:</span>
+                      <p className="text-gray-900">{selectedAnimal.color || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Microchip ID:</span>
+                      <p className="text-gray-900">{selectedAnimal.microchipId || 'Not specified'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Owner Information */}
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Owner Information</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Name:</span>
+                      <p className="text-gray-900">{selectedAnimal.ownerName}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Email:</span>
+                      <p className="text-gray-900">{selectedAnimal.ownerEmail || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Phone:</span>
+                      <p className="text-gray-900">{selectedAnimal.ownerPhone || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Address:</span>
+                      <p className="text-gray-900">{selectedAnimal.address || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Emergency Contact:</span>
+                      <p className="text-gray-900">{selectedAnimal.emergencyContact || 'Not provided'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Health Information */}
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Health Information</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Status:</span>
+                      <span className={`ml-2 inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                        selectedAnimal.status === 'Healthy' ? 'bg-green-100 text-green-800' :
+                        selectedAnimal.status === 'Checkup Due' ? 'bg-yellow-100 text-yellow-800' :
+                        selectedAnimal.status === 'Treatment' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {selectedAnimal.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Notes:</span>
+                      <p className="text-gray-900 mt-1">{selectedAnimal.notes || 'No notes available'}</p>
+                    </div>
+                    {selectedAnimal.healthRecordUrl && (
+                      <div>
+                        <span className="font-medium text-gray-600">Health Record:</span>
+                        <a
+                          href={selectedAnimal.healthRecordUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                        >
+                          View Health Record
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timestamps */}
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <p>Created: {new Date(selectedAnimal.createdAt).toLocaleString()}</p>
+                    <p>Last Updated: {new Date(selectedAnimal.updatedAt).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  handleEditAnimal(selectedAnimal);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Edit Animal
+              </button>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Animal Modal */}
+      {showEditModal && selectedAnimal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Edit Animal: {selectedAnimal.name}</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateAnimal} className="space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Animal Name *</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={editFormData.name || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                  <select
+                    name="type"
+                    value={editFormData.type || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  >
+                    <option value="">Select Type</option>
+                    <option value="Dog">Dog</option>
+                    <option value="Cat">Cat</option>
+                    <option value="Bird">Bird</option>
+                    <option value="Fish">Fish</option>
+                    <option value="Rabbit">Rabbit</option>
+                    <option value="Hamster">Hamster</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Breed</label>
+                  <input
+                    type="text"
+                    name="breed"
+                    value={editFormData.breed || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                  <input
+                    type="text"
+                    name="age"
+                    value={editFormData.age || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select
+                    name="gender"
+                    value={editFormData.gender || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Unknown">Unknown</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
+                  <input
+                    type="text"
+                    name="weight"
+                    value={editFormData.weight || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                  <input
+                    type="text"
+                    name="color"
+                    value={editFormData.color || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Microchip ID</label>
+                  <input
+                    type="text"
+                    name="microchipId"
+                    value={editFormData.microchipId || ''}
+                    onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              {/* Owner Information */}
+              <div className="border-t pt-4">
+                <h4 className="text-md font-medium text-gray-900 mb-3">Owner Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Owner Name *</label>
+                    <input
+                      type="text"
+                      name="ownerName"
+                      value={editFormData.ownerName || ''}
+                      onChange={handleEditInputChange}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Owner Email</label>
+                    <input
+                      type="email"
+                      name="ownerEmail"
+                      value={editFormData.ownerEmail || ''}
+                      onChange={handleEditInputChange}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Owner Phone</label>
+                    <input
+                      type="tel"
+                      name="ownerPhone"
+                      value={editFormData.ownerPhone || ''}
+                      onChange={handleEditInputChange}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact</label>
+                    <input
+                      type="text"
+                      name="emergencyContact"
+                      value={editFormData.emergencyContact || ''}
+                      onChange={handleEditInputChange}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <textarea
+                    name="address"
+                    value={editFormData.address || ''}
+                    onChange={handleEditInputChange}
+                    rows="2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              {/* Health Information */}
+              <div className="border-t pt-4">
+                <h4 className="text-md font-medium text-gray-900 mb-3">Health Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      name="status"
+                      value={editFormData.status || ''}
+                      onChange={handleEditInputChange}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    >
+                      <option value="Healthy">Healthy</option>
+                      <option value="Checkup Due">Checkup Due</option>
+                      <option value="Treatment">Treatment</option>
+                      <option value="Emergency">Emergency</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    name="notes"
+                    value={editFormData.notes || ''}
+                    onChange={handleEditInputChange}
+                    rows="3"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              {/* Current Images */}
+              {editImagePreviews.length > 0 && (
+                <div className="border-t pt-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Current Images</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {editImagePreviews.map((preview, index) => (
+                      <div key={preview.id || index} className="relative">
+                        <img 
+                          src={preview.preview || preview} 
+                          alt={`Preview ${index + 1}`} 
+                          className="w-full h-24 object-cover rounded-lg border border-gray-200" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeEditImage(index)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add New Images */}
+              <div className="border-t pt-4">
+                <h4 className="text-md font-medium text-gray-900 mb-3">Add New Images</h4>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleNewImageUpload}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                <p className="text-xs text-gray-500 mt-1">You can select multiple images to add</p>
+              </div>
+
+              {/* Add New Health Record */}
+              <div className="border-t pt-4">
+                <h4 className="text-md font-medium text-gray-900 mb-3">Add New Health Record</h4>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleNewHealthRecordUpload}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+                <p className="text-xs text-gray-500 mt-1">Only PDF files allowed, maximum 10MB</p>
+                {newHealthRecordFile && (
+                  <p className="text-sm text-gray-600 mt-1">Selected: {newHealthRecordFile.name}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  disabled={uploading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploading}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400"
+                >
+                  {uploading ? 'Updating...' : 'Update Animal'}
                 </button>
               </div>
             </form>

@@ -41,7 +41,21 @@ const awsConfig = {
   // Google OAuth Configuration
   Google: {
     clientId: '917720505868-jel4tc2q1t6dugquhcsphpqi8dorfujv.apps.googleusercontent.com'
-  }
+  },
+
+  // API Gateway Configuration
+  API: {
+    endpoints: [
+      {
+        name: 'AnimalAPI',
+        endpoint: process.env.REACT_APP_ANIMAL_API_URL || 'https://gk394j27jg.execute-api.us-east-1.amazonaws.com/prod',
+        region: 'us-east-1'
+      }
+    ]
+  },
+
+  // API Gateway URL for direct use
+  apiGatewayUrl: 'https://gk394j27jg.execute-api.us-east-1.amazonaws.com/prod'
 };
 
 export default awsConfig;

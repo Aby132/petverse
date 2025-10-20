@@ -1,23 +1,32 @@
 {
-  "name": "petverse-order-handler",
+  "name": "petverse-animal-handler",
   "version": "1.0.0",
-  "description": "Lambda function for handling PetVerse orders and Razorpay payments",
-  "main": "orderHandler.js",
+  "description": "Lambda function for handling PetVerse animal management with DynamoDB and S3",
+  "type": "module",
+  "main": "index.mjs",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "package": "zip -r orderHandler.zip ."
+    "package": "zip -r animalHandler.zip ."
   },
   "dependencies": {
-    "aws-sdk": "^2.1692.0",
-    "razorpay": "^2.9.2"
+    "@aws-sdk/client-dynamodb": "^3.450.0",
+    "@aws-sdk/lib-dynamodb": "^3.450.0",
+    "@aws-sdk/client-s3": "^3.450.0",
+    "@aws-sdk/s3-request-presigner": "^3.450.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {},
   "keywords": [
     "aws",
     "lambda",
-    "razorpay",
     "dynamodb",
-    "ecommerce"
+    "s3",
+    "animals",
+    "petverse",
+    "node22"
   ],
   "author": "PetVerse",
   "license": "MIT"
