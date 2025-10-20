@@ -1,0 +1,65 @@
+/* Custom Leaflet marker styles */
+.custom-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Leaflet popup styling */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+}
+
+.leaflet-popup-content {
+  margin: 16px !important;
+  line-height: 1.5 !important;
+}
+
+/* Leaflet control styling */
+.leaflet-control-zoom a {
+  background-color: #3B82F6 !important;
+  color: white !important;
+  border-radius: 4px !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #2563EB !important;
+}
+
+/* Custom marker icons */
+.leaflet-marker-icon {
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Ensure map container has proper dimensions */
+#map {
+  width: 100%;
+  height: 600px;
+  min-height: 600px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Fix for Leaflet map initialization issues */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+/* Ensure map tiles load properly */
+.leaflet-tile {
+  border: none;
+}
+
+/* Fix for map pane positioning issues */
+.leaflet-map-pane {
+  position: relative;
+}
+
+.leaflet-tile-pane {
+  position: absolute;
+  left: 0;
+  top: 0;
+}

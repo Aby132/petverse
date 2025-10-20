@@ -694,29 +694,37 @@ const Community = () => {
   };
 
   return (
-    <div className="h-screen bg-white flex overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col lg:flex-row overflow-hidden">
         {error && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-red-50 text-red-700 border border-red-200 px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm">
             {error}
           </div>
         )}
+        
         {/* Left Sidebar - Communities */}
-        <div className="w-80 bg-gray-50 flex flex-col border-r border-gray-200">
+        <div className="w-full lg:w-80 xl:w-96 bg-white/80 backdrop-blur-md flex flex-col border-r-0 lg:border-r border-gray-200/50 shadow-xl lg:shadow-2xl">
           {/* Header */}
-          <div className="p-3 border-b border-gray-200 bg-white sticky top-0 z-10">
-            <h1 className="text-lg font-bold text-gray-900 mb-2">Pet Communities</h1>
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                placeholder="Search communities..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
+          <div className="p-4 lg:p-6 border-b border-gray-200/50 bg-white/90 backdrop-blur-sm sticky top-0 z-10">
+            <h1 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Pet Communities
+            </h1>
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search communities..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/80 border border-gray-200 text-gray-900 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 placeholder-gray-500 shadow-sm"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  🔍
+                </div>
+              </div>
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="px-3 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-4 py-3 bg-white/80 border border-gray-200 text-gray-900 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm"
               >
                 {categories.map(category => (
                   <option key={category} value={category}>{category}</option>
@@ -725,36 +733,49 @@ const Community = () => {
             </div>
           </div>
 
-          {/* Scrollable Communities List (vertical) */}
+          {/* Scrollable Communities List */}
           <div className="flex-1 overflow-y-auto">
             {/* My Communities Section */}
-            <div className="p-3 border-b border-gray-200">
-              <h2 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+            <div className="p-4 lg:p-6 border-b border-gray-200/50">
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4 flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                 My Communities ({joinedCommunities.length})
               </h2>
-              <div className="space-y-2">
+              <div className="space-y-3">
                   {joinedCommunities.map((community) => (
                     <div
                       key={community.id}
                       onClick={() => selectCommunity(community)}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                      className={`p-3 lg:p-4 rounded-xl cursor-pointer transition-all duration-200 transform hover:scale-[1.02] ${
                         selectedCommunity?.id === community.id
-                          ? 'bg-primary-100 border border-primary-200 text-primary-900'
-                          : 'bg-white border border-gray-200 hover:bg-gray-50 text-gray-700'
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg border-2 border-blue-300'
+                          : 'bg-white/60 border border-gray-200 hover:bg-white hover:shadow-md text-gray-700'
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-2xl">{community.image}</span>
+                      <div className="flex items-center space-x-3 lg:space-x-4">
+                        <div className={`text-2xl lg:text-3xl p-2 rounded-lg ${
+                          selectedCommunity?.id === community.id ? 'bg-white/20' : 'bg-gray-100'
+                        }`}>
+                          {community.image}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{community.name}</p>
-                          <p className="text-xs text-gray-500">{community.memberCount} members</p>
+                          <p className="font-semibold truncate text-base lg:text-lg">{community.name}</p>
+                          <p className={`text-xs lg:text-sm ${
+                            selectedCommunity?.id === community.id ? 'text-white/80' : 'text-gray-500'
+                          }`}>
+                            {community.memberCount} members
+                          </p>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleLeaveCommunity(community.id);
                           }}
-                          className="text-red-500 hover:text-red-600 text-xs font-medium"
+                          className={`text-xs font-medium px-2 lg:px-3 py-1 rounded-lg transition-colors ${
+                            selectedCommunity?.id === community.id 
+                              ? 'text-white/80 hover:text-white hover:bg-white/20' 
+                              : 'text-red-500 hover:text-red-600 hover:bg-red-50'
+                          }`}
                         >
                           Leave
                         </button>
@@ -765,32 +786,35 @@ const Community = () => {
             </div>
 
             {/* Available Communities Section */}
-            <div className="p-3">
-              <h2 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+            <div className="p-4 lg:p-6">
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4 flex items-center">
+                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
                 Available Communities ({availableCommunities.length})
               </h2>
-              <div className="space-y-2">
+              <div className="space-y-3">
                   {availableCommunities.map((community) => (
                   <div
                       key={community.id}
-                      className="p-3 rounded-lg bg-white border border-gray-200 text-gray-700"
+                      className="p-3 lg:p-4 rounded-xl bg-white/60 border border-gray-200 text-gray-700 hover:bg-white hover:shadow-md transition-all duration-200 transform hover:scale-[1.02]"
                     >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-2xl">{community.image}</span>
+                      <div className="flex items-center space-x-3 lg:space-x-4">
+                        <div className="text-2xl lg:text-3xl p-2 rounded-lg bg-gray-100">
+                          {community.image}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{community.name}</p>
-                          <p className="text-xs text-gray-500">{community.memberCount} members</p>
+                          <p className="font-semibold truncate text-base lg:text-lg">{community.name}</p>
+                          <p className="text-xs lg:text-sm text-gray-500">{community.memberCount} members</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => selectCommunity(community)}
-                            className="text-xs text-gray-600 hover:text-gray-800"
+                            className="text-xs text-gray-600 hover:text-gray-800 px-2 lg:px-3 py-1 rounded-lg hover:bg-gray-100 transition-colors"
                           >
                             View
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleJoinCommunity(community.id); }}
-                            className="text-xs bg-primary-600 hover:bg-primary-700 text-white px-3 py-1 rounded-md"
+                            className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-3 lg:px-4 py-1 lg:py-2 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md"
                           >
                             Join
                           </button>
@@ -804,49 +828,63 @@ const Community = () => {
         </div>
 
         {/* Right Side - Chat Area */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col bg-white/90 backdrop-blur-sm min-h-0">
           {selectedCommunity ? (
             <>
               {/* Header */}
-              <div className="bg-white border-b border-gray-200 p-3 flex-shrink-0">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{selectedCommunity.image}</span>
+              <div className="bg-white/95 backdrop-blur-md border-b border-gray-200/50 p-4 lg:p-6 flex-shrink-0 shadow-sm">
+                <div className="flex items-center space-x-3 lg:space-x-4">
+                  <div className="text-3xl lg:text-4xl p-2 lg:p-3 rounded-xl bg-gradient-to-br from-blue-100 to-purple-100">
+                    {selectedCommunity.image}
+                  </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">{selectedCommunity.name}</h2>
-                    <p className="text-sm text-gray-500">{selectedCommunity.memberCount} members</p>
+                    <h2 className="text-lg lg:text-2xl font-bold text-gray-900">{selectedCommunity.name}</h2>
+                    <p className="text-xs lg:text-sm text-gray-600 flex items-center">
+                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                      {selectedCommunity.memberCount} members online
+                    </p>
                   </div>
                 </div>
               </div>
 
               {selectedCommunity.isJoined ? (
                 <>
-                  {/* Messages container - only this scrolls vertically */}
-                  <div className="flex-1 bg-gray-50 p-3 overflow-hidden">
-                    <div ref={messagesEndRef} className="h-full overflow-y-auto space-y-2 pr-1">
+                  {/* Messages container */}
+                  <div className="flex-1 bg-gradient-to-b from-gray-50/50 to-blue-50/30 p-3 lg:p-6 overflow-hidden">
+                    <div ref={messagesEndRef} className="h-full overflow-y-auto space-y-3 lg:space-y-4 pr-1 lg:pr-2">
                       {(selectedCommunity.messages || []).map((m) => {
                         const isMe = m.userId === currentUserId || m.user === 'You';
                         const displayName = isMe ? 'You' : (m.userName || 'Member');
                         return (
                           <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[70%] ${isMe ? 'text-right' : 'text-left'}`}>
-                              <div className="flex items-center mb-1 gap-2">
+                            <div className={`max-w-[85%] lg:max-w-[75%] ${isMe ? 'text-right' : 'text-left'}`}>
+                              <div className="flex items-center mb-2 gap-2 lg:gap-3">
                                 {!isMe && (
-                                  <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                                  <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xs lg:text-sm font-bold shadow-md">
                                     {m.userAvatar}
                                   </div>
                                 )}
-                                <span className="text-xs text-gray-500">{displayName} • {m.time}</span>
+                                <span className="text-xs text-gray-500 font-medium">{displayName} • {m.time}</span>
+                                {isMe && (
+                                  <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center text-white text-xs lg:text-sm font-bold shadow-md">
+                                    {m.userAvatar}
+                                  </div>
+                                )}
                               </div>
-                              <div className={`rounded-2xl px-4 py-2 border ${isMe ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-900 border-gray-200'}`}>
+                              <div className={`rounded-2xl px-4 lg:px-6 py-2 lg:py-3 shadow-md ${
+                                isMe 
+                                  ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white' 
+                                  : 'bg-white text-gray-900 border border-gray-200'
+                              }`}>
                                 {m.mediaUrl && m.mediaType === 'image' && (
-                                  <img src={m.mediaUrl} alt="upload" className="rounded-lg mb-2 max-h-64 object-contain" />
+                                  <img src={m.mediaUrl} alt="upload" className="rounded-xl mb-2 lg:mb-3 max-h-60 lg:max-h-80 object-contain shadow-sm" />
                                 )}
                                 {m.mediaUrl && m.mediaType === 'video' && (
-                                  <video controls className="rounded-lg mb-2 max-h-64"> 
+                                  <video controls className="rounded-xl mb-2 lg:mb-3 max-h-60 lg:max-h-80 shadow-sm"> 
                                     <source src={m.mediaUrl} />
                                   </video>
                                 )}
-                                {m.message && <div className="whitespace-pre-wrap break-words">{m.message}</div>}
+                                {m.message && <div className="whitespace-pre-wrap break-words leading-relaxed text-sm lg:text-base">{m.message}</div>}
                               </div>
                             </div>
                           </div>
@@ -855,62 +893,82 @@ const Community = () => {
                     </div>
                   </div>
 
-                  {/* Message Input - fixed at bottom of right pane */}
-                  <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0">
-                    <div className="flex flex-col gap-2">
+                  {/* Message Input */}
+                  <div className="bg-white/95 backdrop-blur-md border-t border-gray-200/50 p-3 lg:p-6 flex-shrink-0 shadow-lg">
+                    <div className="flex flex-col gap-3 lg:gap-4">
                       {modWarning && (
-                        <div className="text-xs text-red-600">{modWarning}</div>
+                        <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
+                          {modWarning}
+                        </div>
                       )}
-                      <div className="flex space-x-3 items-center">
+                      <div className="flex flex-col lg:flex-row space-y-3 lg:space-y-0 lg:space-x-4 items-end">
                         {mediaPreview && (
-                          <div className="flex items-center gap-2 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-3 bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
                             {mediaType === 'image' ? (
-                              <img src={mediaPreview} alt="preview" className="h-10 w-10 object-cover rounded" />
+                              <img src={mediaPreview} alt="preview" className="h-10 w-10 lg:h-12 lg:w-12 object-cover rounded-lg" />
                             ) : (
-                              <span className="text-xs text-gray-600">Video attached</span>
+                              <div className="h-10 w-10 lg:h-12 lg:w-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                <span className="text-xs text-gray-600">📹</span>
+                              </div>
                             )}
-                            <button onClick={() => { setMediaFile(null); setMediaPreview(''); setMediaType('none'); }} className="text-xs text-red-600 hover:text-red-700">Remove</button>
+                            <button 
+                              onClick={() => { setMediaFile(null); setMediaPreview(''); setMediaType('none'); }} 
+                              className="text-sm text-red-600 hover:text-red-700 font-medium"
+                            >
+                              Remove
+                            </button>
                           </div>
                         )}
-                        <input
-                          type="text"
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' && !processing && !uploading) handleSendMessage(); }}
-                          placeholder={`Message #${selectedCommunity.name}`}
-                          disabled={processing || uploading}
-                          className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        />
-                        <label className="px-2 py-1 border border-gray-300 rounded-lg text-gray-700 cursor-pointer hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                          {processing ? 'Checking content...' : uploading ? 'Uploading...' : 'Upload Media'}
-                          <input type="file" accept="image/*,video/*" className="hidden" onChange={handleUploadMedia} disabled={uploading || processing} />
-                        </label>
-                        <button
-                          onClick={handleSendMessage}
-                          disabled={processing || uploading}
-                          className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
-                        >
-                          {processing ? 'Checking...' : 'Send'}
-                        </button>
+                        <div className="flex-1 relative w-full">
+                          <input
+                            type="text"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !processing && !uploading) handleSendMessage(); }}
+                            placeholder={`Message #${selectedCommunity.name}`}
+                            disabled={processing || uploading}
+                            className="w-full px-4 lg:px-6 py-3 lg:py-4 bg-white border border-gray-200 text-gray-900 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed shadow-sm text-sm lg:text-base placeholder-gray-500"
+                          />
+                        </div>
+                        <div className="flex space-x-2 lg:space-x-4 w-full lg:w-auto">
+                          <label className="flex-1 lg:flex-none px-4 lg:px-6 py-3 lg:py-4 border border-gray-200 rounded-xl text-gray-700 cursor-pointer hover:bg-gray-50 text-xs lg:text-sm font-medium transition-colors shadow-sm">
+                            {processing ? 'Checking...' : uploading ? 'Uploading...' : '📎 Media'}
+                            <input type="file" accept="image/*,video/*" className="hidden" onChange={handleUploadMedia} disabled={uploading || processing} />
+                          </label>
+                          <button
+                            onClick={handleSendMessage}
+                            disabled={processing || uploading}
+                            className="flex-1 lg:flex-none bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed text-white px-6 lg:px-8 py-3 lg:py-4 rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg text-sm lg:text-base"
+                          >
+                            {processing ? 'Checking...' : 'Send'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </>
               ) : (
-                <div className="flex-1 bg-gray-50 p-6 flex items-center justify-center">
-                  <div className="max-w-xl w-full bg-white border border-gray-200 rounded-xl p-6">
-                    <div className="flex items-center mb-4">
-                      <span className="text-3xl mr-3">{selectedCommunity.image}</span>
-                      <div>
-                        <h3 className="text-xl font-semibold text-gray-900">{selectedCommunity.name}</h3>
-                        <p className="text-sm text-gray-500">{selectedCommunity.memberCount} members</p>
+                <div className="flex-1 bg-gradient-to-br from-gray-50 to-blue-50/30 p-4 lg:p-8 flex items-center justify-center">
+                  <div className="max-w-2xl w-full bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-6 lg:p-8 shadow-xl">
+                    <div className="flex flex-col lg:flex-row items-center lg:items-start mb-6 lg:mb-8">
+                      <div className="text-4xl lg:text-5xl mb-4 lg:mb-0 lg:mr-4 p-3 lg:p-4 rounded-xl bg-gradient-to-br from-blue-100 to-purple-100">
+                        {selectedCommunity.image}
+                      </div>
+                      <div className="text-center lg:text-left">
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900">{selectedCommunity.name}</h3>
+                        <p className="text-sm lg:text-base text-gray-600 flex items-center justify-center lg:justify-start">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                          {selectedCommunity.memberCount} members
+                        </p>
                       </div>
                     </div>
-                    <p className="text-gray-700 mb-6">{selectedCommunity.description || 'Join this community to start chatting with members.'}</p>
-                    <div className="flex justify-end">
+                    <p className="text-gray-700 mb-6 lg:mb-8 text-base lg:text-lg leading-relaxed text-center lg:text-left">
+                      {selectedCommunity.description || 'Join this community to start chatting with members and share your pet experiences.'}
+                    </p>
+                    <div className="flex justify-center">
                       <button
                         onClick={() => handleJoinCommunity(selectedCommunity.id)}
-                        className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2 rounded-lg font-medium"
+                        className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 lg:px-8 py-3 lg:py-4 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl text-base lg:text-lg"
                       >
                         Join Community
                       </button>
@@ -921,15 +979,28 @@ const Community = () => {
             </>
           ) : (
             /* No Community Selected */
-            <div className="flex-1 flex items-center justify-center bg-gray-50">
-              <div className="text-center">
-                <div className="text-6xl mb-4">🏘️</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Pet Communities</h2>
-                <p className="text-gray-600 mb-6">{loading ? 'Loading communities...' : 'Select a community from the sidebar to start chatting'}</p>
-                <div className="text-sm text-gray-500">
-                  <p>• Join communities to connect with fellow pet owners</p>
-                  <p>• Share experiences and get expert advice</p>
-                  <p>• Chat in real-time with community members</p>
+            <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50/30">
+              <div className="text-center max-w-2xl mx-auto px-4 lg:px-8">
+                <div className="text-6xl lg:text-8xl mb-6 lg:mb-8">🏘️</div>
+                <h2 className="text-2xl lg:text-4xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Welcome to Pet Communities
+                </h2>
+                <p className="text-lg lg:text-xl text-gray-600 mb-6 lg:mb-8 leading-relaxed">
+                  {loading ? 'Loading communities...' : 'Select a community from the sidebar to start chatting with fellow pet lovers'}
+                </p>
+                <div className="text-base lg:text-lg text-gray-500 space-y-3">
+                  <div className="flex items-center justify-center space-x-3">
+                    <span className="text-xl lg:text-2xl">🐕</span>
+                    <p>Join communities to connect with fellow pet owners</p>
+                  </div>
+                  <div className="flex items-center justify-center space-x-3">
+                    <span className="text-xl lg:text-2xl">💬</span>
+                    <p>Share experiences and get expert advice</p>
+                  </div>
+                  <div className="flex items-center justify-center space-x-3">
+                    <span className="text-xl lg:text-2xl">⚡</span>
+                    <p>Chat in real-time with community members</p>
+                  </div>
                 </div>
               </div>
             </div>

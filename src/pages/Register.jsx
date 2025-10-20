@@ -124,6 +124,17 @@ const Register = () => {
     };
   }
 
+  // Pure password strength checker (no state side-effects)
+  const isPasswordValid = (password) => {
+    return (
+      /\d/.test(password) &&
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      password.length >= 8
+    );
+  };
+
   // Field validation functions
   const validateFirstName = (firstName) => {
     if (!firstName.trim()) {
@@ -290,18 +301,31 @@ const Register = () => {
     setError('');
     setSuccess('');
 
-    // Mark all fields as touched for validation display
-    setFieldValidation(prev => {
-      const updated = { ...prev };
-      Object.keys(updated).forEach(key => {
-        updated[key] = { ...updated[key], touched: true };
-      });
-      return updated;
-    });
+    // Recompute validations synchronously from current form data to avoid stale state
+    const firstNameValidation = validateFirstName(formData.firstName);
+    const lastNameValidation = validateLastName(formData.lastName);
+    const emailFormatValidation = validateEmail(formData.email);
+    const passwordIsValid = validatePassword(formData.password); // updates state internally as well
+    const confirmPasswordValidation = validateConfirmPassword(formData.confirmPassword, formData.password);
 
-    // Check if all fields are valid
-    const allFieldsValid = Object.values(fieldValidation).every(field => field.isValid);
-    
+    // Update field validation state to reflect latest checks and mark as touched
+    setFieldValidation(prev => ({
+      ...prev,
+      firstName: { ...prev.firstName, ...firstNameValidation, touched: true },
+      lastName: { ...prev.lastName, ...lastNameValidation, touched: true },
+      email: { ...prev.email, ...emailFormatValidation, touched: true },
+      password: { ...prev.password, isValid: passwordIsValid, message: passwordIsValid ? 'Password meets all requirements' : 'Password does not meet all requirements', touched: true },
+      confirmPassword: { ...prev.confirmPassword, ...confirmPasswordValidation, touched: true }
+    }));
+
+    const allFieldsValid = (
+      firstNameValidation.isValid &&
+      lastNameValidation.isValid &&
+      emailFormatValidation.isValid &&
+      passwordIsValid &&
+      confirmPasswordValidation.isValid
+    );
+
     if (!allFieldsValid) {
       setError('Please fix all validation errors before submitting.');
       return;
@@ -672,7 +696,19 @@ const Register = () => {
 
             <button
               type="submit"
-              disabled={isLoading || !Object.values(fieldValidation).every(field => field.isValid) || fieldValidation.email.checking || !formData.agreeToTerms}
+              disabled={(() => {
+                if (isLoading) return true;
+                if (!formData.agreeToTerms) return true;
+                // compute from current values to avoid stale state
+                const firstNameOk = validateFirstName(formData.firstName).isValid;
+                const lastNameOk = validateLastName(formData.lastName).isValid;
+                const emailFormatOk = validateEmail(formData.email).isValid;
+                const passwordOk = isPasswordValid(formData.password);
+                const confirmOk = validateConfirmPassword(formData.confirmPassword, formData.password).isValid;
+                // Allow enabling even if email availability check is pending; server will re-check
+                const allOk = firstNameOk && lastNameOk && emailFormatOk && passwordOk && confirmOk;
+                return !allOk;
+              })()}
               className="w-full bg-secondary-600 hover:bg-secondary-700 disabled:bg-secondary-400 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed"
             >
               {isLoading ? (
