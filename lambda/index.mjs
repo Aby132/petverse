@@ -347,6 +347,24 @@ const updateAnimal = async (event) => {
     // Handle new image uploads if present
     if (body.newImages && body.newImages.length > 0) {
       console.log(`Processing ${body.newImages.length} new images for animal ${animalId}`);
+      
+      // Delete old images first if they exist
+      if (existingAnimal.Item.imageUrls && existingAnimal.Item.imageUrls.length > 0) {
+        console.log(`Deleting ${existingAnimal.Item.imageUrls.length} old images from S3`);
+        for (const imageUrl of existingAnimal.Item.imageUrls) {
+          try {
+            const key = extractS3Key(imageUrl);
+            if (key) {
+              await deleteFromS3(IMAGES_BUCKET, key);
+              console.log(`Deleted old image: ${key}`);
+            }
+          } catch (deleteError) {
+            console.error('Error deleting old image:', deleteError);
+            // Continue with upload even if deletion fails
+          }
+        }
+      }
+      
       const newImageUrls = [];
       
       for (let i = 0; i < body.newImages.length; i++) {
@@ -370,12 +388,28 @@ const updateAnimal = async (event) => {
         }
       }
       
-      updateData.imageUrls = [...(updateData.imageUrls || []), ...newImageUrls];
+      // Replace all images with new ones
+      updateData.imageUrls = newImageUrls;
     }
 
     // Handle new health record upload if present
     if (body.newHealthRecord && body.newHealthRecord.data && body.newHealthRecord.contentType) {
       console.log(`Processing new health record for animal ${animalId}`);
+      
+      // Delete old health record first if it exists
+      if (existingAnimal.Item.healthRecordUrl) {
+        try {
+          const key = extractS3Key(existingAnimal.Item.healthRecordUrl);
+          if (key) {
+            await deleteFromS3(HEALTH_RECORDS_BUCKET, key);
+            console.log(`Deleted old health record: ${key}`);
+          }
+        } catch (deleteError) {
+          console.error('Error deleting old health record:', deleteError);
+          // Continue with upload even if deletion fails
+        }
+      }
+      
       const healthRecordKey = `animals/${animalId}/health-record-${Date.now()}.${body.newHealthRecord.extension || 'pdf'}`;
       
       try {
@@ -387,6 +421,7 @@ const updateAnimal = async (event) => {
           body.newHealthRecord.contentType
         );
         updateData.healthRecordUrl = `https://${HEALTH_RECORDS_BUCKET}.s3.amazonaws.com/${healthRecordKey}`;
+        console.log(`Successfully uploaded new health record: ${updateData.healthRecordUrl}`);
       } catch (uploadError) {
         console.error('Error uploading new health record:', uploadError);
       }

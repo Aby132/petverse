@@ -414,18 +414,25 @@ const AdminAnimals = () => {
   const handleNewImageUpload = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
-      setNewImageFiles(prev => [...prev, ...files]);
+      // Replace all images with new ones (not add to existing)
+      setNewImageFiles(files);
       
-      // Generate previews for new files
+      // Generate previews for new files only
+      const newPreviews = [];
       files.forEach(file => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          setEditImagePreviews(prev => [...prev, {
+          newPreviews.push({
             file,
             preview: e.target.result,
             id: Date.now() + Math.random(),
             isNew: true
-          }]);
+          });
+          
+          // Update previews when all files are processed
+          if (newPreviews.length === files.length) {
+            setEditImagePreviews(newPreviews);
+          }
         };
         reader.readAsDataURL(file);
       });
@@ -434,6 +441,7 @@ const AdminAnimals = () => {
 
   const removeEditImage = (index) => {
     setEditImagePreviews(prev => prev.filter((_, i) => i !== index));
+    setNewImageFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleNewHealthRecordUpload = (e) => {
@@ -1886,9 +1894,9 @@ const AdminAnimals = () => {
                 </div>
               )}
 
-              {/* Add New Images */}
+              {/* Replace Images */}
               <div className="border-t pt-4">
-                <h4 className="text-md font-medium text-gray-900 mb-3">Add New Images</h4>
+                <h4 className="text-md font-medium text-gray-900 mb-3">Replace Images</h4>
                 <input
                   type="file"
                   accept="image/*"
@@ -1896,19 +1904,19 @@ const AdminAnimals = () => {
                   onChange={handleNewImageUpload}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
-                <p className="text-xs text-gray-500 mt-1">You can select multiple images to add</p>
+                <p className="text-xs text-gray-500 mt-1">⚠️ Selecting new images will replace all existing images</p>
               </div>
 
-              {/* Add New Health Record */}
+              {/* Replace Health Record */}
               <div className="border-t pt-4">
-                <h4 className="text-md font-medium text-gray-900 mb-3">Add New Health Record</h4>
+                <h4 className="text-md font-medium text-gray-900 mb-3">Replace Health Record</h4>
                 <input
                   type="file"
                   accept=".pdf"
                   onChange={handleNewHealthRecordUpload}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
-                <p className="text-xs text-gray-500 mt-1">Only PDF files allowed, maximum 10MB</p>
+                <p className="text-xs text-gray-500 mt-1">⚠️ Selecting a new health record will replace the existing one. Only PDF files allowed, maximum 10MB</p>
                 {newHealthRecordFile && (
                   <p className="text-sm text-gray-600 mt-1">Selected: {newHealthRecordFile.name}</p>
                 )}
