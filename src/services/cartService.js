@@ -20,12 +20,13 @@ class CartService {
       // Get userId from auth if not provided
       const currentUserId = userId || this.getCurrentUserId();
       
-      // Check cache first for faster response
+      // Check cache first for faster response (but always refresh for animal availability checks)
       if (!forceRefresh && currentUserId) {
         const cacheKey = `cart_${currentUserId}`;
         const cached = this.cache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
           console.log('📦 Returning cached cart items');
+          // Still return cached data, but the Cart component will verify animal availability separately
           return cached.data;
         }
       }
@@ -76,15 +77,27 @@ class CartService {
 
       if (response.ok) {
         const cartItems = await response.json();
-        this.updateLocalStorage(cartItems);
-      this.dispatchCartUpdate(cartItems);
-        return cartItems;
+        
+        // Filter out completed products from backend response
+        const filteredCart = cartItems.filter(item => {
+          // For products: remove if order is completed
+          if (!this.isAnimalItem(item)) {
+            return item.orderStatus !== 'completed' && 
+                   item.orderStatus !== 'delivered';
+          }
+          // For animals: keep all (including sold ones) to show them with "Sold" label
+          return true;
+        });
+        
+        this.updateLocalStorage(filteredCart);
+        this.dispatchCartUpdate(filteredCart);
+        return filteredCart;
       } else {
         console.warn('Backend cart fetch failed, using local storage');
-      const localCart = this.getCartFromLocalStorage();
-      this.dispatchCartUpdate(localCart);
-      return localCart;
-    }
+        const localCart = this.getCartFromLocalStorage();
+        this.dispatchCartUpdate(localCart);
+        return localCart;
+      }
   }
 
   cacheCartItems(userId, cartItems) {
@@ -134,7 +147,24 @@ class CartService {
           images: product.images, // Store full images array for flexibility
           brand: product.brand,
           stock: product.stock,
-          category: product.category
+          category: product.category,
+          // Include all animal-specific properties
+          isAnimal: product.isAnimal,
+          animalId: product.animalId,
+          type: product.type,
+          breed: product.breed,
+          age: product.age,
+          gender: product.gender,
+          ownerName: product.ownerName,
+          ownerEmail: product.ownerEmail,
+          ownerPhone: product.ownerPhone,
+          address: product.address,
+          status: product.status,
+          color: product.color,
+          weight: product.weight,
+          microchipId: product.microchipId,
+          notes: product.notes,
+          imageUrls: product.imageUrls
         })
       };
 
@@ -180,7 +210,24 @@ class CartService {
           images: cartItem.images,
           brand: cartItem.brand,
           stock: cartItem.stock,
-          category: cartItem.category
+          category: cartItem.category,
+          // Preserve all animal-specific properties
+          isAnimal: cartItem.isAnimal,
+          animalId: cartItem.animalId,
+          type: cartItem.type,
+          breed: cartItem.breed,
+          age: cartItem.age,
+          gender: cartItem.gender,
+          ownerName: cartItem.ownerName,
+          ownerEmail: cartItem.ownerEmail,
+          ownerPhone: cartItem.ownerPhone,
+          address: cartItem.address,
+          status: cartItem.status,
+          color: cartItem.color,
+          weight: cartItem.weight,
+          microchipId: cartItem.microchipId,
+          notes: cartItem.notes,
+          imageUrls: cartItem.imageUrls
         });
       }
     } else {
@@ -223,6 +270,15 @@ class CartService {
   async updateCartItem(productId, quantity, userId = null) {
     try {
       const currentUserId = userId || this.getCurrentUserId();
+      
+      // Check if the item is an animal - prevent quantity updates for animals
+      const currentCart = this.getCartFromLocalStorage();
+      const item = currentCart.find(item => item.productId === productId);
+      
+      if (item && this.isAnimalItem(item)) {
+        console.warn('Cannot update quantity for animals - they are unique items');
+        return { success: false, error: 'Cannot update quantity for animals - they are unique items' };
+      }
       
       // Apply optimistic update immediately
       const optimisticResult = this.applyOptimisticUpdate(productId, quantity);
@@ -403,6 +459,136 @@ class CartService {
     }
   }
 
+  // Helper function to check if item is an animal
+  isAnimalItem(item) {
+    // First check for explicit flag
+    if (item.isAnimal === true) {
+      return true;
+    }
+    
+    // Check for animalId
+    if (item.animalId) {
+      return true;
+    }
+    
+    // Check for animal-specific properties
+    if (item.type && (item.breed || item.ownerName)) {
+      return true;
+    }
+    
+    // Check for ownerName
+    if (item.ownerName) {
+      return true;
+    }
+    
+    // Additional check for animals vs products
+    if (item.name && item.type && !item.category) {
+      return true;
+    }
+    
+    // Additional fallback: check for common animal-related properties
+    const hasAnimalProperties = item.age || item.gender || item.weight || item.color || item.microchipId;
+    if (hasAnimalProperties && item.type) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  // Function to handle checkout - remove products, mark animals as sold
+  async handleCheckout(userId = null) {
+    try {
+      const currentUserId = userId || this.getCurrentUserId();
+      const cartItems = await this.getCartItems(currentUserId);
+      
+      if (!cartItems || cartItems.length === 0) {
+        return { success: true, message: 'Cart is already empty' };
+      }
+
+      // Separate products and animals
+      const products = cartItems.filter(item => !this.isAnimalItem(item));
+      const animals = cartItems.filter(item => this.isAnimalItem(item));
+
+      console.log(`Processing checkout: ${products.length} products, ${animals.length} animals`);
+
+      // Remove all products from cart (they will be processed in the order)
+      if (products.length > 0) {
+        for (const product of products) {
+          await this.removeFromCart(product.productId, currentUserId);
+        }
+        console.log(`Removed ${products.length} products from cart after checkout`);
+      }
+
+      // Mark animals as sold but keep them in cart with "Sold" status
+      if (animals.length > 0) {
+        const updatedCart = [];
+        
+        for (const animal of animals) {
+          // Mark animal as sold
+          const soldAnimal = {
+            ...animal,
+            status: 'Sold',
+            orderStatus: 'delivered',
+            isSold: true,
+            availability: 'Sold',
+            soldAt: new Date().toISOString()
+          };
+          
+          updatedCart.push(soldAnimal);
+          
+          // Update animal status in backend
+          try {
+            await fetch(`https://gk394j27jg.execute-api.us-east-1.amazonaws.com/prod/animals/${animal.animalId || animal.productId}/order-status`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderStatus: 'delivered' })
+            });
+            console.log(`Marked animal ${animal.animalId || animal.productId} as sold`);
+          } catch (error) {
+            console.warn(`Failed to update animal status in backend:`, error);
+            // Continue even if backend update fails
+          }
+        }
+        
+        // Update local storage with sold animals
+        this.updateLocalStorage(updatedCart);
+        this.dispatchCartUpdate(updatedCart);
+        
+        console.log(`Marked ${animals.length} animals as sold`);
+      }
+
+      return { 
+        success: true, 
+        message: `Checkout completed: ${products.length} products removed, ${animals.length} animals marked as sold`,
+        productsRemoved: products.length,
+        animalsMarkedAsSold: animals.length
+      };
+    } catch (error) {
+      console.error('Error during checkout:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Function to force refresh cart and clear cache
+  async forceRefreshCart(userId = null) {
+    try {
+      const currentUserId = userId || this.getCurrentUserId();
+      
+      // Clear cache for this user
+      if (currentUserId) {
+        const cacheKey = `cart_${currentUserId}`;
+        this.cache.delete(cacheKey);
+        console.log('Cleared cart cache for user:', currentUserId);
+      }
+      
+      // Force refresh from backend/localStorage
+      return await this.getCartItems(currentUserId, true);
+    } catch (error) {
+      console.error('Error force refreshing cart:', error);
+      return [];
+    }
+  }
+
   async syncCartWithBackend(userId = null) {
     try {
       const localCart = this.getCartFromLocalStorage();
@@ -448,7 +634,26 @@ class CartService {
   getCartFromLocalStorage() {
     try {
       const cart = localStorage.getItem('petverse_cart');
-      return cart ? JSON.parse(cart) : [];
+      const parsedCart = cart ? JSON.parse(cart) : [];
+      
+      // Filter out completed products automatically
+      const filteredCart = parsedCart.filter(item => {
+        // For products: remove if order is completed
+        if (!this.isAnimalItem(item)) {
+          return item.orderStatus !== 'completed' && 
+                 item.orderStatus !== 'delivered';
+        }
+        // For animals: keep all (including sold ones) to show them with "Sold" label
+        return true;
+      });
+      
+      // Update localStorage if any items were filtered out
+      if (filteredCart.length !== parsedCart.length) {
+        console.log('Automatically removed completed products from cart');
+        this.updateLocalStorage(filteredCart);
+      }
+      
+      return filteredCart;
     } catch (error) {
       console.error('Error reading cart from localStorage:', error);
       return [];
@@ -600,6 +805,48 @@ class CartService {
     const cart = this.getCartFromLocalStorage();
     const item = cart.find(item => item.productId === productId);
     return item ? item.quantity : 0;
+  }
+
+  // Helper method to check if an item is an animal
+  isAnimalItem(item) {
+    // Check for explicit flag first
+    if (item.isAnimal === true) {
+      return true;
+    }
+    
+    // Check for animalId
+    if (item.animalId) {
+      return true;
+    }
+    
+    // Check for animal-specific properties
+    if (item.type && (item.breed || item.ownerName)) {
+      return true;
+    }
+    
+    // Check for ownerName
+    if (item.ownerName) {
+      return true;
+    }
+    
+    // Additional check for animals vs products
+    if (item.name && item.type && !item.category) {
+      return true;
+    }
+    
+    // Additional fallback: check for common animal-related properties
+    const hasAnimalProperties = item.age || item.gender || item.weight || item.color || item.microchipId;
+    if (hasAnimalProperties && item.type) {
+      return true;
+    }
+    
+    // Check if the name suggests it's an animal (common pet names)
+    const commonPetNames = ['buddy', 'whiskers', 'fluffy', 'spot', 'max', 'bella', 'luna', 'charlie', 'milo', 'kuttusan'];
+    if (item.name && commonPetNames.some(petName => item.name.toLowerCase().includes(petName.toLowerCase()))) {
+      return true;
+    }
+    
+    return false;
   }
 }
 

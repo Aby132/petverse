@@ -12,16 +12,37 @@ const Cart = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
+  const [productStocks, setProductStocks] = useState({});
 
   useEffect(() => {
     loadCartItems();
+    // Check for and remove sold animals when component mounts
+    // Use enhanced function with API verification
+    checkAndRemoveSoldAnimals();
+    
+    // Set up periodic check for sold animals (every 2 minutes)
+    const interval = setInterval(() => {
+      checkAndRemoveSoldAnimals();
+    }, 120000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Listen for cart updates from other components
   useEffect(() => {
     const handleCartUpdate = (event) => {
       if (event.detail && Array.isArray(event.detail)) {
-        setCartItems(event.detail);
+        // Filter items: keep sold animals, remove completed products
+        const filteredItems = event.detail.filter(item => {
+          // For products: remove if order is completed
+          if (!isAnimal(item)) {
+            return item.orderStatus !== 'completed' && 
+                   item.orderStatus !== 'delivered';
+          }
+          // For animals: keep all (including sold ones) to show them with "Sold" label
+          return true;
+        });
+        setCartItems(filteredItems);
       } else {
         loadCartItems();
       }
@@ -46,7 +67,65 @@ const Cart = () => {
       }
 
       const items = await cartService.getCartItems();
-      setCartItems(Array.isArray(items) ? items : []);
+      
+      // Filter items: keep sold animals (to show them), remove completed products
+      let filteredItems = Array.isArray(items) ? items.filter(item => {
+        // For products: remove if order is completed
+        if (!isAnimal(item)) {
+          return item.orderStatus !== 'completed' && 
+                 item.orderStatus !== 'delivered';
+        }
+        // For animals: keep all (including sold ones) to show them with "Sold" label
+        return true;
+      }) : [];
+      
+      // Check for deleted animals and update their status
+      const animalItems = filteredItems.filter(isAnimal);
+      if (animalItems.length > 0) {
+        console.log('Checking for deleted animals and updating status...');
+        const availabilityChecks = await Promise.all(
+          animalItems.map(async (item) => {
+            const animalId = item.animalId || item.productId;
+            const animalData = await verifyAnimalAvailability(animalId);
+            return { item, animalData };
+          })
+        );
+        
+        // Update items with current animal status and filter out deleted animals
+        filteredItems = filteredItems.map(item => {
+          if (isAnimal(item)) {
+            const check = availabilityChecks.find(c => c.item === item);
+            if (check && check.animalData) {
+              // Update item with current animal data from API
+              return {
+                ...item,
+                status: check.animalData.status,
+                orderStatus: check.animalData.orderStatus,
+                isSold: check.animalData.isSold,
+                availability: check.animalData.availability,
+                soldAt: check.animalData.soldAt
+              };
+            } else if (check === false) {
+              // Animal was deleted - return null to filter out
+              return null;
+            }
+          }
+          return item;
+        }).filter(item => item !== null); // Remove deleted animals
+        
+        // Update cart if any changes were made
+        if (filteredItems.length !== items.length || 
+            JSON.stringify(filteredItems) !== JSON.stringify(items)) {
+          console.log('Updated animal status and removed deleted animals from cart');
+          localStorage.setItem('petverse_cart', JSON.stringify(filteredItems));
+        }
+      }
+      
+      setCartItems(filteredItems);
+      
+      // Load stock information for products (not animals)
+      await loadProductStocks(filteredItems);
+      
     } catch (error) {
       console.error('Error loading cart:', error);
       setError('Failed to load cart items. Please try again.');
@@ -56,8 +135,78 @@ const Cart = () => {
     }
   };
 
+  // Function to load stock information for products only (not animals)
+  const loadProductStocks = async (items) => {
+    try {
+      // Filter only non-animal items (products) - animals don't have stock
+      const productItems = items.filter(item => !isAnimal(item));
+      
+      if (productItems.length === 0) {
+        setProductStocks({});
+        return;
+      }
+
+      // Fetch stock information for each product
+      const stockPromises = productItems.map(async (item) => {
+        try {
+          const response = await fetch(`https://ykqbrht440.execute-api.us-east-1.amazonaws.com/prod/products/${item.productId}`);
+          if (response.ok) {
+            const productData = await response.json();
+            return {
+              productId: item.productId,
+              stock: productData.stock || 0
+            };
+          } else {
+            console.warn(`API returned ${response.status} for product ${item.productId}:`, response.statusText);
+            return {
+              productId: item.productId,
+              stock: item.stock || 0 // Use cached stock if API fails
+            };
+          }
+        } catch (error) {
+          console.error(`Error fetching stock for product ${item.productId}:`, error);
+          return {
+            productId: item.productId,
+            stock: item.stock || 0 // Use cached stock if API fails
+          };
+        }
+      });
+
+      const stockResults = await Promise.all(stockPromises);
+      const stockMap = {};
+      stockResults.forEach(result => {
+        stockMap[result.productId] = result.stock;
+      });
+      
+      setProductStocks(stockMap);
+    } catch (error) {
+      console.error('Error loading product stocks:', error);
+    }
+  };
+
   const updateQuantity = async (productId, newQuantity) => {
     if (newQuantity < 1) return;
+    
+    // Find the item to check if it's an animal
+    const item = cartItems.find(item => item.productId === productId);
+    if (item && isAnimal(item)) {
+      console.warn('Cannot update quantity for animals - they are unique items without stock');
+      return; // Prevent quantity updates for animals (they don't have stock/quantity)
+    }
+    
+    // Check stock limit for products
+    if (item && !isAnimal(item)) {
+      const currentStock = productStocks[productId] || item.stock || 0;
+      if (newQuantity > currentStock) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Insufficient Stock',
+          text: `Only ${currentStock} items available in stock.`,
+          confirmButtonColor: '#3B82F6'
+        });
+        return;
+      }
+    }
     
     try {
       setError('');
@@ -184,15 +333,43 @@ const Cart = () => {
     return calculateSubtotal() + calculateShipping();
   };
 
-  // Helper function to get product image URL
+  // Helper function to get product/animal image URL
   const getProductImageUrl = (item) => {
-    // Try different possible image URL properties
+    // For animals, prioritize animal-specific image properties
+    if (isAnimal(item)) {
+      // Try imageUrl property first (now properly set from Animals.jsx)
+      if (item.imageUrl) {
+        return item.imageUrl;
+      }
+      
+      // Try imageUrls array (fallback)
+    if (item.imageUrls && Array.isArray(item.imageUrls) && item.imageUrls.length > 0) {
+      return item.imageUrls[0];
+    }
+    
+      // Try images array
+      if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+        const firstImage = item.images[0];
+        const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.imageUrl;
+        return imageUrl;
+      }
+      
+      // Try image property
+      if (item.image) {
+        return item.image;
+      }
+      
+      // Animal-specific placeholder
+      const emoji = getAnimalEmoji(item.type);
+      return `https://placehold.co/100x100?text=${emoji}`;
+    }
+    
+    // For regular products, try different image properties
     if (item.imageUrl) {
       return item.imageUrl;
     }
     
     if (item.images && Array.isArray(item.images) && item.images.length > 0) {
-      // Handle both string URLs and objects with imageUrl property
       const firstImage = item.images[0];
       const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.imageUrl;
       return imageUrl;
@@ -206,15 +383,303 @@ const Cart = () => {
     return 'https://placehold.co/100x100?text=No%20Image';
   };
 
-  const handleCheckout = () => {
+  // Helper function to check if item is an animal
+  const isAnimal = (item) => {
+    // First check for explicit flag
+    if (item.isAnimal === true) {
+      return true;
+    }
+    
+    // Check for animalId
+    if (item.animalId) {
+      return true;
+    }
+    
+    // Check for animal-specific properties
+    if (item.type && (item.breed || item.ownerName)) {
+      return true;
+    }
+    
+    // Check for ownerName
+    if (item.ownerName) {
+      return true;
+    }
+    
+    // Additional check for animals vs products
+    if (item.name && item.type && !item.category) {
+      return true;
+    }
+    
+    // Additional fallback: check for common animal-related properties
+    const hasAnimalProperties = item.age || item.gender || item.weight || item.color || item.microchipId;
+    if (hasAnimalProperties && item.type) {
+      return true;
+    }
+    
+    // Check if the name suggests it's an animal (common pet names)
+    const commonPetNames = ['buddy', 'whiskers', 'fluffy', 'spot', 'max', 'bella', 'luna', 'charlie', 'milo', 'kuttusan'];
+    if (item.name && commonPetNames.some(petName => item.name.toLowerCase().includes(petName.toLowerCase()))) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Helper function to get animal emoji
+  const getAnimalEmoji = (type) => {
+    const typeEmojis = {
+      'Dog': '🐕',
+      'Cat': '🐱',
+      'Bird': '🐦',
+      'Fish': '🐠',
+      'Rabbit': '🐰',
+      'Hamster': '🐹',
+      'Reptile': '🦎',
+      'Other': '🐾'
+    };
+    return typeEmojis[type] || '🐾';
+  };
+
+  // Helper function to get item display name
+  const getItemDisplayName = (item) => {
+    return item.name || item.productName || 'Unknown Item';
+  };
+
+  // Helper function to check if an animal is sold
+  const isAnimalSold = (item) => {
+    if (!isAnimal(item)) return false;
+    
+    return item.status === 'Sold' || 
+           item.orderStatus === 'delivered' || 
+           item.orderStatus === 'completed' ||
+           item.isSold === true ||
+           item.availability === 'Sold';
+  };
+
+  // Helper function to remove sold animals from cart
+  const removeSoldAnimals = async () => {
+    try {
+      // Get current cart items
+      const currentItems = await cartService.getCartItems();
+      
+      // Filter out sold animals - check multiple status indicators
+      const availableItems = currentItems.filter(item => {
+        if (isAnimal(item)) {
+          // Check multiple ways an animal might be marked as sold
+          return item.status !== 'Sold' && 
+                 item.orderStatus !== 'delivered' && 
+                 item.orderStatus !== 'completed' &&
+                 !item.isSold &&
+                 item.availability !== 'Sold';
+        }
+        return true;
+      });
+      
+      // If any sold animals were found, update the cart
+      if (availableItems.length !== currentItems.length) {
+        console.log('Removing sold animals from cart');
+        // Update localStorage directly to remove sold animals
+        localStorage.setItem('petverse_cart', JSON.stringify(availableItems));
+        
+        // Update the UI
+        setCartItems(availableItems);
+        
+        // Silently remove sold animals without notification
+      }
+    } catch (error) {
+      console.error('Error removing sold animals from cart:', error);
+    }
+  };
+
+  // Helper function to verify animal availability by checking the API
+  const verifyAnimalAvailability = async (animalId) => {
+    try {
+      const response = await fetch(`https://gk394j27jg.execute-api.us-east-1.amazonaws.com/prod/animals/${animalId}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Animal exists - return the full animal data for status checking
+        return data.animal ? data.animal : false;
+      } else if (response.status === 404) {
+        // Animal not found - it has been deleted
+        console.log(`Animal ${animalId} not found - it has been deleted`);
+        return false;
+      } else {
+        console.warn(`API returned ${response.status} for animal ${animalId}:`, response.statusText);
+        // For other errors, assume animal is still available to avoid false positives
+        return true;
+      }
+    } catch (error) {
+      console.error('Error verifying animal availability:', error);
+      // If API call fails, assume animal is still available to avoid false positives
+      return true;
+    }
+  };
+
+  // Enhanced function to check and update sold animals with API verification
+  const checkAndRemoveSoldAnimals = async () => {
+    try {
+      const currentItems = await cartService.getCartItems();
+      const animalItems = currentItems.filter(isAnimal);
+      
+      if (animalItems.length === 0) return;
+      
+      // Check each animal's current status via API
+      const availabilityChecks = await Promise.all(
+        animalItems.map(async (item) => {
+          const animalId = item.animalId || item.productId;
+          const animalData = await verifyAnimalAvailability(animalId);
+          return { item, animalData };
+        })
+      );
+      
+      // Update cart items with current animal status
+      const updatedItems = currentItems.map(item => {
+        if (isAnimal(item)) {
+          const check = availabilityChecks.find(c => c.item === item);
+          if (check && check.animalData) {
+            // Update item with current animal data from API
+            return {
+              ...item,
+              status: check.animalData.status,
+              orderStatus: check.animalData.orderStatus,
+              isSold: check.animalData.isSold,
+              availability: check.animalData.availability,
+              soldAt: check.animalData.soldAt
+            };
+          } else if (check === false) {
+            // Animal was deleted - mark for removal
+            return null;
+          }
+        }
+        return item;
+      }).filter(item => item !== null); // Remove deleted animals
+      
+      // Update cart if any changes were made
+      if (updatedItems.length !== currentItems.length || 
+          JSON.stringify(updatedItems) !== JSON.stringify(currentItems)) {
+        console.log('Updating cart with current animal status');
+        localStorage.setItem('petverse_cart', JSON.stringify(updatedItems));
+        setCartItems(updatedItems);
+      }
+    } catch (error) {
+      console.error('Error checking animal availability:', error);
+    }
+  };
+
+  const handleCheckout = async () => {
     // Check if user is authenticated
     if (!isAuthenticated()) {
       navigate('/login', { state: { from: '/cart' } });
       return;
     }
 
+    // First, refresh animal status before checkout
+    await checkAndRemoveSoldAnimals();
+
+    // Check for sold animals (prevent checkout if animals are sold)
+    const soldAnimals = cartItems.filter(item => isAnimalSold(item));
+    if (soldAnimals.length > 0) {
+      const animalNames = soldAnimals.map(item => item.name).join(', ');
+      Swal.fire({
+        icon: 'error',
+        title: 'Cannot Proceed to Checkout',
+        html: `
+          <div class="text-left">
+            <p class="mb-2">The following animals have been sold and cannot be purchased:</p>
+            <ul class="list-disc list-inside space-y-1 text-sm">
+              ${soldAnimals.map(animal => `<li class="flex items-center"><span class="mr-2">🐾</span>${animal.name} - ${animal.status || 'Sold'}</li>`).join('')}
+            </ul>
+            <p class="mt-3 text-sm text-gray-600">Please remove these animals from your cart before proceeding to checkout.</p>
+          </div>
+        `,
+        confirmButtonColor: '#3B82F6'
+      });
+      return;
+    }
+
+    // Check for out-of-stock products (animals don't have stock - they are unique items)
+    const outOfStockItems = cartItems.filter(item => {
+      if (isAnimal(item)) return false; // Animals don't have stock limits - they are unique items
+      const currentStock = productStocks[item.productId] || item.stock || 0;
+      return item.quantity > currentStock || currentStock <= 0;
+    });
+
+    if (outOfStockItems.length > 0) {
+      const itemNames = outOfStockItems.map(item => item.name).join(', ');
+      Swal.fire({
+        icon: 'error',
+        title: 'Cannot Proceed to Checkout',
+        text: `The following items are out of stock: ${itemNames}. Please remove them or reduce quantities before proceeding.`,
+        confirmButtonColor: '#3B82F6'
+      });
+      return;
+    }
+
+    // Show confirmation dialog
+    const result = await Swal.fire({
+      title: 'Proceed to Checkout?',
+      html: `
+        <div class="text-left">
+          <p class="mb-2">Your order contains:</p>
+          <ul class="list-disc list-inside space-y-1 text-sm">
+            ${cartItems.filter(item => !isAnimal(item)).length > 0 ? `<li>${cartItems.filter(item => !isAnimal(item)).length} product(s) - will be removed from cart after order</li>` : ''}
+            ${cartItems.filter(item => isAnimal(item)).length > 0 ? `<li>${cartItems.filter(item => isAnimal(item)).length} animal(s) - will be marked as sold</li>` : ''}
+          </ul>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#3B82F6',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, proceed!',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      
+      // Process checkout using cartService
+      const checkoutResult = await cartService.handleCheckout();
+      
+      if (checkoutResult.success) {
+        // Show success message
+        Swal.fire({
+          icon: 'success',
+          title: 'Checkout Processed!',
+          html: `
+            <div class="text-left">
+              <p class="mb-2">Checkout completed successfully:</p>
+              <ul class="list-disc list-inside space-y-1 text-sm">
+                ${checkoutResult.productsRemoved > 0 ? `<li>${checkoutResult.productsRemoved} product(s) removed from cart</li>` : ''}
+                ${checkoutResult.animalsMarkedAsSold > 0 ? `<li>${checkoutResult.animalsMarkedAsSold} animal(s) marked as sold</li>` : ''}
+              </ul>
+            </div>
+          `,
+          confirmButtonColor: '#3B82F6',
+          timer: 3000,
+          showConfirmButton: true
+        });
+
     // Navigate to checkout page
     navigate('/checkout');
+      } else {
+        throw new Error(checkoutResult.error || 'Checkout failed');
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Checkout Failed',
+        text: error.message || 'Failed to process checkout. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
+    } finally {
+      setUpdating(false);
+    }
   };
 
   // Error display component
@@ -266,6 +731,7 @@ const Cart = () => {
               : `${cartItems.length} item${cartItems.length !== 1 ? 's' : ''} in your cart`
             }
           </p>
+          
         </div>
 
         {cartItems.length === 0 ? (
@@ -287,36 +753,71 @@ const Cart = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Cart Items List */}
             <div className="lg:col-span-2 space-y-4">
-              {cartItems.map((item) => (
-                <div key={item.productId} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              {cartItems.map((item) => {
+                const animalIsSold = isAnimalSold(item);
+                return (
+                <div key={item.productId} className={`bg-white rounded-xl shadow-sm border p-6 ${
+                  animalIsSold ? 'border-red-200 bg-red-50' : 'border-gray-200'
+                }`}>
                   <div className="flex items-center space-x-4">
-                    {/* Product Image */}
+                    {/* Product/Animal Image */}
                     <div className="flex-shrink-0">
                       <img
                         src={getProductImageUrl(item)}
-                        alt={item.name || 'Product'}
+                        alt={getItemDisplayName(item)}
                         className="w-20 h-20 object-cover rounded-lg"
                         onError={(e) => {
+                          // Use animal-specific placeholder if it's an animal
+                          if (isAnimal(item)) {
+                            e.target.src = `https://placehold.co/100x100?text=${getAnimalEmoji(item.type)}`;
+                          } else {
                           e.target.src = 'https://placehold.co/100x100?text=No%20Image';
+                          }
                         }}
                       />
                     </div>
 
-                    {/* Product Info */}
+                    {/* Product/Animal Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <div>
+                          <div className="flex items-center space-x-2 mb-1">
                           <h3 className="text-lg font-semibold text-gray-900 truncate">
-                            {item.name}
+                            {getItemDisplayName(item)}
                           </h3>
-                          {item.brand && (
-                            <p className="text-sm text-gray-500">{item.brand}</p>
+                            {animalIsSold && (
+                              <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                                SOLD
+                              </span>
+                            )}
+                          </div>
+                          {isAnimal(item) ? (
+                            <div className="text-sm text-gray-500 space-y-1">
+                              <div className="flex items-center space-x-4">
+                                {item.type && (
+                                  <span className="flex items-center">
+                                    <span className="mr-1">{getAnimalEmoji(item.type)}</span>
+                                    <span className="font-medium">{item.type}</span>
+                                  </span>
+                                )}
+                                {item.breed && <span>Breed: {item.breed}</span>}
+                              </div>
+                              {item.age && <p>Age: {item.age}</p>}
+                              {item.gender && <p>Gender: {item.gender}</p>}
+                              {item.ownerName && <p>Owner: {item.ownerName}</p>}
+                            </div>
+                          ) : (
+                            item.brand && <p className="text-sm text-gray-500">{item.brand}</p>
                           )}
                         </div>
                         <button
-                          onClick={() => removeItem(item.productId)}
-                          disabled={updating}
-                          className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => removeItem(isAnimal(item) ? item.animalId || item.productId : item.productId)}
+                          disabled={updating || animalIsSold}
+                          className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            animalIsSold 
+                              ? 'text-gray-300 cursor-not-allowed' 
+                              : 'text-gray-400 hover:text-red-500'
+                          }`}
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -327,33 +828,52 @@ const Cart = () => {
                       <div className="flex items-center justify-between mt-4">
                         <div className="flex items-center space-x-3">
                           <span className="text-lg font-bold text-blue-600">₹{item.price}</span>
-                          <span className="text-sm text-gray-500">per item</span>
+                          {isAnimal(item) ? (
+                            <span className="text-sm text-gray-500">unique animal</span>
+                          ) : (
+                            <span className="text-sm text-gray-500">per item</span>
+                          )}
                         </div>
 
-                        {/* Quantity Controls */}
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                            disabled={item.quantity <= 1 || updating}
-                            className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                            </svg>
-                          </button>
-                          
-                          <span className="w-12 text-center font-medium">{item.quantity}</span>
-                          
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                            disabled={item.quantity >= (item.stock || 999) || updating}
-                            className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                          </button>
-                        </div>
+                        {/* Quantity Controls - Different for animals vs products */}
+                        {isAnimal(item) ? (
+                          <div className="flex items-center space-x-2">
+                            {animalIsSold ? (
+                              <span className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-200">
+                                🚫 Sold - Cannot Purchase
+                              </span>
+                            ) : (
+                              <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                                🐾 Unique Animal
+                            </span>
+                            )}
+                            <span className="w-12 text-center font-medium text-gray-500">1</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                              disabled={item.quantity <= 1 || updating}
+                              className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                            
+                            <span className="w-12 text-center font-medium">{item.quantity}</span>
+                            
+                            <button
+                              onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                              disabled={item.quantity >= (productStocks[item.productId] || item.stock || 999) || updating}
+                              className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Item Total */}
@@ -362,16 +882,41 @@ const Cart = () => {
                           <span className="text-sm text-gray-500">Item Total:</span>
                           <span className="text-lg font-bold text-gray-900">₹{item.price * item.quantity}</span>
                         </div>
-                        {item.stock && item.quantity >= item.stock && (
-                          <p className="text-xs text-red-600 mt-1">
-                            Maximum available quantity reached
-                          </p>
+                        {isAnimal(item) ? (
+                          <div className="mt-1">
+                            {animalIsSold ? (
+                              <p className="text-xs text-red-600 font-medium">
+                                🚫 This animal has been sold and cannot be purchased
+                              </p>
+                            ) : (
+                              <p className="text-xs text-blue-600">
+                                🐾 This is a unique animal - quantity cannot be changed
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-1 space-y-1">
+                            <p className="text-xs text-gray-500">
+                              Stock: {productStocks[item.productId] !== undefined ? productStocks[item.productId] : (item.stock || 0)} available
+                            </p>
+                            {productStocks[item.productId] !== undefined && productStocks[item.productId] <= 0 && (
+                              <p className="text-xs text-red-600 font-medium">
+                                ⚠️ Out of Stock
+                              </p>
+                            )}
+                            {productStocks[item.productId] !== undefined && item.quantity > productStocks[item.productId] && (
+                              <p className="text-xs text-red-600 font-medium">
+                                ⚠️ Quantity exceeds available stock
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               {/* Clear Cart Button */}
               <div className="flex justify-end">
@@ -417,12 +962,47 @@ const Cart = () => {
                 </div>
 
                 {/* Checkout Button */}
+                {(() => {
+                  const soldAnimals = cartItems.filter(item => isAnimalSold(item));
+                  const outOfStockItems = cartItems.filter(item => {
+                    if (isAnimal(item)) return false; // Animals don't have stock - they are unique items
+                    const currentStock = productStocks[item.productId] || item.stock || 0;
+                    return item.quantity > currentStock || currentStock <= 0;
+                  });
+
+                  const hasBlockingItems = soldAnimals.length > 0 || outOfStockItems.length > 0;
+
+                  return (
                 <button
                   onClick={handleCheckout}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors mt-6"
-                >
-                  Proceed to Checkout
+                      disabled={hasBlockingItems || updating}
+                      className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors mt-6 ${
+                        hasBlockingItems || updating
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      {updating ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </span>
+                      ) : soldAnimals.length > 0 ? (
+                        <span className="flex items-center justify-center">
+                          <span className="mr-2">🐾</span>
+                          Cannot Checkout ({soldAnimals.length} sold animals)
+                        </span>
+                      ) : outOfStockItems.length > 0 ? (
+                        `Cannot Checkout (${outOfStockItems.length} out of stock)`
+                      ) : (
+                        'Proceed to Checkout'
+                      )}
                 </button>
+                  );
+                })()}
 
                 {/* Continue Shopping */}
                 <Link to="/store">

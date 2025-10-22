@@ -34,6 +34,7 @@ const AdminCommunity = lazy(() => import('./pages/admin/AdminCommunity'));
 const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const Community = lazy(() => import('./pages/Community'));
+const Animals = lazy(() => import('./pages/Animals'));
 
 
 // Configure AWS Amplify
@@ -69,6 +70,7 @@ function App() {
               <Route path="/" element={<HomeWithRedirect />} />
               <Route path="/about" element={<About />} />
               <Route path="/store" element={<Store />} />
+              <Route path="/animals" element={<Animals />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/product/:productId" element={<ProductDetail />} />
               <Route path="/discover" element={<Discover />} />

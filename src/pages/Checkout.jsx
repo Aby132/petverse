@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Footer from '../components/Footer';
 import Swal from 'sweetalert2';
 import productService from '../services/productService';
+import AnimalService from '../services/animalService';
 
 // Direct API configuration - no services needed
 const API_BASE_URL = 'https://m3hoptm1hi.execute-api.us-east-1.amazonaws.com/prod';
@@ -26,6 +27,27 @@ const Checkout = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAddressUpdating, setIsAddressUpdating] = useState(false);
   const [enrichedCartItems, setEnrichedCartItems] = useState([]);
+  const [animalService, setAnimalService] = useState(null);
+
+  // Helper function to check if item is an animal
+  const isAnimal = (item) => {
+    return item.animalId || item.type || item.breed || item.ownerName;
+  };
+
+  // Helper function to get animal emoji
+  const getAnimalEmoji = (type) => {
+    const typeEmojis = {
+      'Dog': '🐕',
+      'Cat': '🐱',
+      'Bird': '🐦',
+      'Fish': '🐠',
+      'Rabbit': '🐰',
+      'Hamster': '🐹',
+      'Reptile': '🦎',
+      'Other': '🐾'
+    };
+    return typeEmojis[type] || '🐾';
+  };
 
   // Edit address state
   const [editingAddressId, setEditingAddressId] = useState(null);
@@ -59,8 +81,14 @@ const Checkout = () => {
       navigate('/login', { state: { from: '/checkout' } });
       return;
     }
+    
+    // Initialize animal service
+    if (user) {
+      setAnimalService(new AnimalService(user));
+    }
+    
     loadCheckoutData();
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, user]);
 
   const loadCheckoutData = async () => {
     try {
@@ -378,6 +406,26 @@ const Checkout = () => {
     return calculateSubtotal() + calculateShipping();
   };
 
+  // Function to update animal status to "Sold"
+  const updateAnimalStatusToSold = async (animalIds) => {
+    if (!animalService || !animalIds || animalIds.length === 0) {
+      return;
+    }
+
+    try {
+      // Update each animal's status to "Sold"
+      const updatePromises = animalIds.map(animalId => 
+        animalService.updateAnimal(animalId, { status: 'Sold' })
+      );
+      
+      await Promise.all(updatePromises);
+      console.log('Successfully updated animal statuses to Sold:', animalIds);
+    } catch (error) {
+      console.error('Error updating animal statuses to Sold:', error);
+      // Don't throw error here as it shouldn't block the order completion
+    }
+  };
+
   const loadRazorpayScript = () => {
     return new Promise((resolve, reject) => {
       if (window.Razorpay) {
@@ -421,10 +469,25 @@ const Checkout = () => {
 
       const afterOrderSuccess = async (extra = {}) => {
         try {
-          const itemsForDecrement = (orderData.items || []).map(it => ({ productId: it.productId, quantity: it.quantity }));
-          await productService.decrementStockBulk(itemsForDecrement);
+          // Update animal statuses to "Sold" for animals in the order
+          const animalIds = enrichedCartItems
+            .filter(item => isAnimal(item) && item.animalId)
+            .map(item => item.animalId);
+          
+          if (animalIds.length > 0) {
+            await updateAnimalStatusToSold(animalIds);
+          }
+
+          // Decrement stock for regular products
+          const itemsForDecrement = (orderData.items || [])
+            .filter(item => !isAnimal(item))
+            .map(it => ({ productId: it.productId, quantity: it.quantity }));
+          
+          if (itemsForDecrement.length > 0) {
+            await productService.decrementStockBulk(itemsForDecrement);
+          }
         } catch (e) {
-          console.warn('Stock decrement failed:', e);
+          console.warn('Post-order processing failed:', e);
         }
         // Clear cart regardless; backend stock is source of truth
         localStorage.removeItem('petverse_cart');
@@ -940,16 +1003,29 @@ const Checkout = () => {
               
               <div className="space-y-3 mb-6">
                 {enrichedCartItems.map((item) => {
-                  // Determine the best image source
+                  // Determine the best image source - handle both products and animals
                   let imageSrc = 'https://placehold.co/50x50?text=No%20Image';
                   
-                  if (item.imageUrl) {
-                    imageSrc = item.imageUrl;
-                  } else if (item.images && Array.isArray(item.images) && item.images.length > 0) {
-                    if (typeof item.images[0] === 'string') {
-                      imageSrc = item.images[0];
-                    } else if (item.images[0].imageUrl) {
-                      imageSrc = item.images[0].imageUrl;
+                  if (isAnimal(item)) {
+                    // Handle animal images
+                    if (item.imageUrl) {
+                      imageSrc = item.imageUrl;
+                    } else if (item.imageUrls && Array.isArray(item.imageUrls) && item.imageUrls.length > 0) {
+                      imageSrc = item.imageUrls[0];
+                    } else {
+                      // Use animal emoji placeholder
+                      imageSrc = `https://placehold.co/50x50?text=${getAnimalEmoji(item.type)}`;
+                    }
+                  } else {
+                    // Handle product images
+                    if (item.imageUrl) {
+                      imageSrc = item.imageUrl;
+                    } else if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+                      if (typeof item.images[0] === 'string') {
+                        imageSrc = item.images[0];
+                      } else if (item.images[0].imageUrl) {
+                        imageSrc = item.images[0].imageUrl;
+                      }
                     }
                   }
                   
@@ -961,12 +1037,29 @@ const Checkout = () => {
                         className="w-12 h-12 object-cover rounded-lg"
                         onError={(e) => {
                           console.warn('Image failed to load:', imageSrc);
-                          e.target.src = 'https://placehold.co/50x50?text=Error';
+                          if (isAnimal(item)) {
+                            e.target.src = `https://placehold.co/50x50?text=${getAnimalEmoji(item.type)}`;
+                          } else {
+                            e.target.src = 'https://placehold.co/50x50?text=Error';
+                          }
                         }}
                       />
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-gray-900 truncate">{item.name}</h3>
-                        <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                        {isAnimal(item) ? (
+                          <div className="text-xs text-gray-500 space-y-1">
+                            {item.type && (
+                              <div className="flex items-center">
+                                <span className="mr-1">{getAnimalEmoji(item.type)}</span>
+                                <span>{item.type}</span>
+                              </div>
+                            )}
+                            {item.breed && <p>Breed: {item.breed}</p>}
+                            <p>Unique Animal</p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                        )}
                       </div>
                       <span className="text-sm font-medium text-gray-900">₹{item.price * item.quantity}</span>
                     </div>

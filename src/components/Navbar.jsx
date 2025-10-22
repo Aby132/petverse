@@ -92,42 +92,42 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Home
-            </Link>
-            <Link to="/about" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="hidden md:flex items-center space-x-4">
+            <Link to="/about" className="text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              About Us
+              About
             </Link>
-            <Link to="/store" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Link to="/store" className="text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
               </svg>
               Store
             </Link>
-            <Link to="/discover" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Link to="/animals" className="text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              Animals
+            </Link>
+            <Link to="/discover" className="text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               Discover
             </Link>
-            <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
               AI Assistant
             </Link>
             <Link 
               to={user ? (userRole === 'admin' ? "/communities" : "/admin/community") : "/login"} 
-              className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center"
+              className="text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors flex items-center"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               Communities
@@ -136,8 +136,8 @@ const Navbar = () => {
             {user ? (
               <>
                 {userRole === 'admin' && (
-                  <Link to="/admin-dashboard" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <Link to="/admin-dashboard" className="text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors flex items-center">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
                     Dashboard
@@ -148,14 +148,14 @@ const Navbar = () => {
                 <div className="relative" ref={dropdownRef}>
                   <button
                     onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                    className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none"
+                    className="flex items-center space-x-1 text-gray-700 hover:text-primary-600 px-2 py-1 rounded text-sm font-medium transition-colors focus:outline-none"
                   >
                     {/* Profile Picture */}
-                    <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                    <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center text-white font-medium text-xs">
                       {getProfileInitials()}
                     </div>
-                    <span>Hi, {getUserFirstName()}</span>
-                    <svg className={`w-4 h-4 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <span className="text-sm">Hi, {getUserFirstName()}</span>
+                    <svg className={`w-3 h-3 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
@@ -255,7 +255,7 @@ const Navbar = () => {
                 </div>
               </>
             ) : (
-              <Link to="/login" className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-md text-sm font-medium transition-colors">
+              <Link to="/login" className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-1 rounded text-sm font-medium transition-colors">
                 Login / Register
               </Link>
             )}
@@ -282,24 +282,24 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-50 rounded-lg mt-2">
-              <Link to="/" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
-                Home
-              </Link>
-              <Link to="/about" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+              <Link to="/about" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                 About Us
               </Link>
-              <Link to="/store" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+              <Link to="/store" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                 Store
               </Link>
-              <Link to="/discover" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+              <Link to="/animals" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
+                Animals
+              </Link>
+              <Link to="/discover" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                 Discover
               </Link>
-              <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+              <Link to="/chatbot" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                 AI Assistant
               </Link>
               <Link 
                 to={user ? (userRole === 'admin' ? "/communities" : "/admin/community") : "/login"} 
-                className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors"
               >
                 Communities
               </Link>
@@ -320,38 +320,38 @@ const Navbar = () => {
                   </div>
 
                   {userRole === 'admin' && (
-                    <Link to="/admin-dashboard" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                    <Link to="/admin-dashboard" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                       Dashboard
                     </Link>
                   )}
 
                   {userRole === 'user' && (
-                    <Link to="/user-dashboard" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                    <Link to="/user-dashboard" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                       Manage Account
                     </Link>
                   )}
 
-                  <Link to="/orders" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                  <Link to="/orders" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                     My Orders
                   </Link>
 
-                                     <Link to="/cart" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
-                     Cart ({cartCount} items)
-                   </Link>
+                  <Link to="/cart" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
+                    Cart ({cartCount} items)
+                  </Link>
 
-                  <Link to="/settings" className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                  <Link to="/settings" className="text-gray-700 hover:text-primary-600 block px-2 py-1 rounded text-sm font-medium transition-colors">
                     Settings
                   </Link>
 
                   <button
                     onClick={handleSignOut}
-                    className="bg-red-600 hover:bg-red-700 text-white block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors mt-2"
+                    className="bg-red-600 hover:bg-red-700 text-white block w-full text-left px-2 py-1 rounded text-sm font-medium transition-colors mt-2"
                   >
                     Sign Out
                   </button>
                 </>
               ) : (
-                <Link to="/login" className="bg-primary-600 hover:bg-primary-700 text-white block px-3 py-2 rounded-md text-base font-medium transition-colors">
+                <Link to="/login" className="bg-primary-600 hover:bg-primary-700 text-white block px-2 py-1 rounded text-sm font-medium transition-colors">
                   Login / Register
                 </Link>
               )}

@@ -11,6 +11,17 @@ const AdminAnimals = () => {
   const [error, setError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [animalService, setAnimalService] = useState(null);
+  
+  // Animal orders state
+  const [animalOrders, setAnimalOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [showOrdersSection, setShowOrdersSection] = useState(false);
+  
+  // Sold animals state
+  const [soldAnimals, setSoldAnimals] = useState([]);
+  const [soldAnimalsLoading, setSoldAnimalsLoading] = useState(false);
+  const [showSoldAnimalsSection, setShowSoldAnimalsSection] = useState(false);
+  const [updatingOrderStatus, setUpdatingOrderStatus] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -22,6 +33,7 @@ const AdminAnimals = () => {
     weight: '',
     color: '',
     microchipId: '',
+    price: '',
     ownerName: '',
     ownerEmail: '',
     ownerPhone: '',
@@ -63,12 +75,166 @@ const AdminAnimals = () => {
       setLoading(true);
       setError('');
       const animalsData = await animalService.getAnimals();
-      setAnimals(animalsData);
+      // Filter out sold animals from the main animals list
+      const availableAnimals = animalsData.filter(animal => 
+        animal.status !== 'Sold' && 
+        animal.orderStatus !== 'delivered' && 
+        animal.orderStatus !== 'completed' &&
+        !animal.isSold &&
+        animal.availability !== 'Sold'
+      );
+      setAnimals(availableAnimals);
+      console.log(`Loaded ${availableAnimals.length} available animals (filtered out ${animalsData.length - availableAnimals.length} sold animals)`);
     } catch (err) {
       setError('Failed to load animals');
       console.error('Load animals error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAnimalOrders = async () => {
+    try {
+      setOrdersLoading(true);
+      const response = await fetch('https://m3hoptm1hi.execute-api.us-east-1.amazonaws.com/prod/admin/orders');
+      
+      if (response.ok) {
+        const allOrders = await response.json();
+        // Filter orders that contain animals
+        const animalOrdersData = allOrders.filter(order => 
+          order.items && order.items.some(item => 
+            item.isAnimal === true || 
+            item.animalId || 
+            (item.type && item.breed) || 
+            (item.type && item.ownerName)
+          )
+        );
+        setAnimalOrders(animalOrdersData);
+      } else {
+        throw new Error('Failed to fetch orders');
+      }
+    } catch (error) {
+      console.error('Error loading animal orders:', error);
+      setAnimalOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const loadSoldAnimals = async () => {
+    try {
+      setSoldAnimalsLoading(true);
+      const animalsData = await animalService.getAnimals();
+      // Filter only sold animals - check multiple status indicators
+      const soldAnimalsData = animalsData.filter(animal => 
+        animal.status === 'Sold' || 
+        animal.orderStatus === 'delivered' || 
+        animal.orderStatus === 'completed' ||
+        animal.isSold === true ||
+        animal.availability === 'Sold'
+      );
+      setSoldAnimals(soldAnimalsData);
+      console.log(`Loaded ${soldAnimalsData.length} sold animals`);
+    } catch (err) {
+      console.error('Error loading sold animals:', err);
+      setSoldAnimals([]);
+    } finally {
+      setSoldAnimalsLoading(false);
+    }
+  };
+
+  const getOrderStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'confirmed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'shipped':
+        return 'bg-purple-100 text-purple-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const updateAnimalOrderStatus = async (animalId, newStatus) => {
+    try {
+      setUpdatingOrderStatus(true);
+      
+      console.log(`Attempting to update animal ${animalId} order status to ${newStatus}`);
+      
+      // Update local state optimistically
+      setSoldAnimals(prevAnimals => 
+        prevAnimals.map(animal => 
+          animal.animalId === animalId 
+            ? { ...animal, orderStatus: newStatus, updatedAt: new Date().toISOString() }
+            : animal
+        )
+      );
+
+      // Make API call to update the animal order status
+      const url = `${animalService.baseUrl}/animals/${animalId}/order-status`;
+      console.log('Making request to:', url);
+      
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ orderStatus: newStatus })
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('Update successful:', responseData);
+        await Swal.fire({
+          icon: 'success',
+          title: 'Status Updated',
+          text: `Animal order status changed to ${newStatus}`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      } else {
+        const errorText = await response.text();
+        console.error(`API Error ${response.status}:`, errorText);
+        
+        // Revert optimistic update on failure
+        await loadSoldAnimals();
+        
+        let errorMessage = 'Failed to update animal order status';
+        if (response.status === 403) {
+          errorMessage = 'Access denied. Please check your permissions.';
+        } else if (response.status === 404) {
+          errorMessage = 'Animal not found.';
+        } else if (response.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+        
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error updating animal order status:', error);
+      
+      // Revert optimistic update
+      await loadSoldAnimals();
+      
+      Swal.fire({
+        icon: 'error',
+        title: 'Update Failed',
+        text: error.message || 'Failed to update animal order status. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
+    } finally {
+      setUpdatingOrderStatus(false);
     }
   };
 
@@ -171,6 +337,7 @@ const AdminAnimals = () => {
         weight: '',
         color: '',
         microchipId: '',
+        price: '',
         ownerName: '',
         ownerEmail: '',
         ownerPhone: '',
@@ -221,6 +388,7 @@ const AdminAnimals = () => {
       weight: animal.weight,
       color: animal.color,
       microchipId: animal.microchipId,
+      price: animal.price || '',
       ownerName: animal.ownerName,
       ownerEmail: animal.ownerEmail,
       ownerPhone: animal.ownerPhone,
@@ -601,6 +769,321 @@ const AdminAnimals = () => {
           </div>
         </div>
 
+        {/* Sold Animals Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Sold Animals</h2>
+                <p className="text-gray-600">View animals that have been sold</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSoldAnimalsSection(!showSoldAnimalsSection);
+                  if (!showSoldAnimalsSection && soldAnimals.length === 0) {
+                    loadSoldAnimals();
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                {showSoldAnimalsSection ? 'Hide Sold Animals' : 'Show Sold Animals'}
+              </button>
+            </div>
+          </div>
+          
+          {showSoldAnimalsSection && (
+            <div className="p-6">
+              {soldAnimalsLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading sold animals...</p>
+                </div>
+              ) : soldAnimals.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-4">🛒</div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Sold Animals Found</h3>
+                  <p className="text-gray-600">No animals have been sold yet.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Animal</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type & Breed</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {soldAnimals.map((animal) => (
+                        <tr key={animal.animalId} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3 overflow-hidden">
+                                {animal.imageUrls && animal.imageUrls.length > 0 ? (
+                                  <img src={animal.imageUrls[0]} alt={animal.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-lg">
+                                    {animal.type === 'Dog' ? '🐕' : 
+                                     animal.type === 'Cat' ? '🐱' : 
+                                     animal.type === 'Bird' ? '🐦' : 
+                                     animal.type === 'Fish' ? '🐠' : '🐾'}
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{animal.name}</div>
+                                <div className="text-sm text-gray-500">ID: {animal.animalId}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{animal.type}</div>
+                              <div className="text-sm text-gray-500">{animal.breed}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{animal.ownerName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Sold
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getOrderStatusColor(animal.orderStatus)}`}>
+                              {animal.orderStatus || 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-col space-y-2">
+                              <select
+                                value={animal.orderStatus || 'pending'}
+                                onChange={(e) => {
+                                  const newStatus = e.target.value;
+                                  console.log(`Status change requested for animal ${animal.animalId}: ${newStatus}`);
+                                  updateAnimalOrderStatus(animal.animalId, newStatus);
+                                }}
+                                disabled={updatingOrderStatus}
+                                className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="processing">Processing</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                              <div className="flex space-x-1">
+                                <button 
+                                  onClick={() => handleViewAnimal(animal)}
+                                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                >
+                                  View
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    // Manual update fallback - just update local state
+                                    setSoldAnimals(prevAnimals => 
+                                      prevAnimals.map(a => 
+                                        a.animalId === animal.animalId 
+                                          ? { ...a, orderStatus: animal.orderStatus || 'pending', updatedAt: new Date().toISOString() }
+                                          : a
+                                      )
+                                    );
+                                    Swal.fire({
+                                      icon: 'info',
+                                      title: 'Local Update',
+                                      text: 'Status updated locally. API sync may be unavailable.',
+                                      timer: 2000,
+                                      showConfirmButton: false
+                                    });
+                                  }}
+                                  className="text-green-600 hover:text-green-800 text-sm font-medium"
+                                  title="Manual update (when API is unavailable)"
+                                >
+                                  Sync
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Animal Orders Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Animal Orders</h2>
+                <p className="text-gray-600">Manage orders containing animals</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowOrdersSection(!showOrdersSection);
+                  if (!showOrdersSection && animalOrders.length === 0) {
+                    loadAnimalOrders();
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                {showOrdersSection ? 'Hide Orders' : 'Show Orders'}
+              </button>
+            </div>
+          </div>
+          
+          {showOrdersSection && (
+            <div className="p-6">
+              {ordersLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading animal orders...</p>
+                </div>
+              ) : animalOrders.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-4">🐾</div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Animal Orders Found</h3>
+                  <p className="text-gray-600">No orders containing animals have been placed yet.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Animals</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {animalOrders.map((order) => (
+                        <tr key={order.orderId} className="hover:bg-gray-50">
+                          {/* Order Info */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">#{order.orderId}</div>
+                              <div className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</div>
+                              <div className="text-sm font-medium text-green-600">₹{order.total}</div>
+                            </div>
+                          </td>
+
+                          {/* Customer Info */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{order.customerName || order.deliveryAddress?.name}</div>
+                              <div className="text-sm text-gray-500">{order.customerEmail || order.deliveryAddress?.email}</div>
+                              <div className="text-sm text-gray-500">{order.deliveryAddress?.phone}</div>
+                            </div>
+                          </td>
+
+                          {/* Animal Items */}
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1">
+                              {order.items.filter(item => 
+                                item.isAnimal === true || 
+                                item.animalId || 
+                                (item.type && item.breed) || 
+                                (item.type && item.ownerName)
+                              ).slice(0, 2).map((item, index) => (
+                                <div key={index} className="flex items-center space-x-2 bg-blue-50 rounded-lg p-2 mb-1">
+                                  <img
+                                    src={item.imageUrls && item.imageUrls.length > 0 ? item.imageUrls[0] : 
+                                         item.imageUrl || 'https://placehold.co/32x32?text=🐾'}
+                                    alt={item.name}
+                                    className="w-8 h-8 object-cover rounded"
+                                    onError={(e) => {
+                                      e.target.src = 'https://placehold.co/32x32?text=🐾';
+                                    }}
+                                  />
+                                  <div>
+                                    <div className="text-xs font-medium text-gray-900 truncate max-w-20">{item.name}</div>
+                                    <div className="text-xs text-gray-500">{item.type} • {item.breed}</div>
+                                  </div>
+                                </div>
+                              ))}
+                              {order.items.filter(item => 
+                                item.isAnimal === true || 
+                                item.animalId || 
+                                (item.type && item.breed) || 
+                                (item.type && item.ownerName)
+                              ).length > 2 && (
+                                <div className="text-xs text-gray-500 bg-blue-100 rounded-lg p-2">
+                                  +{order.items.filter(item => 
+                                    item.isAnimal === true || 
+                                    item.animalId || 
+                                    (item.type && item.breed) || 
+                                    (item.type && item.ownerName)
+                                  ).length - 2} more animals
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Payment Info */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm capitalize font-medium text-gray-900">
+                                {order.paymentMethod === 'cod' ? 'COD' : order.paymentMethod}
+                              </div>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                order.paymentStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                order.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                order.paymentStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {order.paymentStatus}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Order Status */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              order.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                              order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                              order.status === 'shipped' ? 'bg-purple-100 text-purple-800' :
+                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                              order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {order.status}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex space-x-2">
+                              <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                View Details
+                              </button>
+                              <button className="text-green-600 hover:text-green-800 text-sm font-medium">
+                                Update Status
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
@@ -794,6 +1277,19 @@ const AdminAnimals = () => {
                     value={formData.microchipId}
                     onChange={handleInputChange}
                     placeholder="Microchip number"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
+                  <input
+                    type="number"
+                    name="price"
+                    value={formData.price}
+                    onChange={handleInputChange}
+                    placeholder="Enter price in rupees"
+                    min="0"
+                    step="0.01"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   />
                 </div>
@@ -1050,6 +1546,10 @@ const AdminAnimals = () => {
                       <span className="font-medium text-gray-600">Microchip ID:</span>
                       <p className="text-gray-900">{selectedAnimal.microchipId || 'Not specified'}</p>
                     </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Price:</span>
+                      <p className="text-gray-900">{selectedAnimal.price ? `₹${selectedAnimal.price}` : 'Not specified'}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -1254,6 +1754,19 @@ const AdminAnimals = () => {
                     name="microchipId"
                     value={editFormData.microchipId || ''}
                     onChange={handleEditInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
+                  <input
+                    type="number"
+                    name="price"
+                    value={editFormData.price || ''}
+                    onChange={handleEditInputChange}
+                    placeholder="Enter price in rupees"
+                    min="0"
+                    step="0.01"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   />
                 </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+  import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import Swal from 'sweetalert2';
@@ -13,7 +13,8 @@ const AdminOrders = () => {
     status: 'all',
     paymentStatus: 'all',
     paymentMethod: 'all',
-    dateRange: '7days'
+    dateRange: '7days',
+    orderType: 'all' // all, products, animals
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -196,7 +197,33 @@ const AdminOrders = () => {
     }
   };
 
+  // Helper function to check if an order contains animals
+  const isAnimalOrder = (order) => {
+    return order.items && order.items.some(item => 
+      item.isAnimal === true || 
+      item.animalId || 
+      (item.type && item.breed) || 
+      (item.type && item.ownerName)
+    );
+  };
+
+  // Helper function to check if an order contains only animals (no products)
+  const isAnimalOnlyOrder = (order) => {
+    if (!order.items || order.items.length === 0) return false;
+    return order.items.every(item => 
+      item.isAnimal === true || 
+      item.animalId || 
+      (item.type && item.breed) || 
+      (item.type && item.ownerName)
+    );
+  };
+
   const getProductImageUrl = (item) => {
+    // For animals, handle imageUrls
+    if (item.imageUrls && Array.isArray(item.imageUrls) && item.imageUrls.length > 0) {
+      return item.imageUrls[0];
+    }
+    // For products, handle regular image properties
     if (item.imageUrl) return item.imageUrl;
     if (item.images && Array.isArray(item.images) && item.images.length > 0) {
       const firstImage = item.images[0];
@@ -206,8 +233,16 @@ const AdminOrders = () => {
     return 'https://placehold.co/80x80?text=No%20Image';
   };
 
-  // Filter orders based on current filters
+  // Filter orders based on current filters - SHOW animal orders (both product and animal orders)
   const filteredOrders = orders.filter(order => {
+    // Order type filter
+    let matchesOrderType = true;
+    if (filters.orderType === 'products') {
+      matchesOrderType = !isAnimalOrder(order);
+    } else if (filters.orderType === 'animals') {
+      matchesOrderType = isAnimalOrder(order);
+    }
+
     const matchesSearch = searchTerm === '' || 
       order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -230,7 +265,7 @@ const AdminOrders = () => {
       matchesDate = now - orderDate <= 30 * 24 * 60 * 60 * 1000;
     }
 
-    return matchesSearch && matchesStatus && matchesPaymentStatus && matchesPaymentMethod && matchesDate;
+    return matchesOrderType && matchesSearch && matchesStatus && matchesPaymentStatus && matchesPaymentMethod && matchesDate;
   });
 
   // Pagination
@@ -270,7 +305,7 @@ const AdminOrders = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
-            <p className="text-gray-600">Track and manage customer orders</p>
+            <p className="text-gray-600">Track and manage customer orders (products and animals)</p>
           </div>
           <div className="mt-4 sm:mt-0">
             <span className="text-sm text-gray-500">
@@ -281,7 +316,7 @@ const AdminOrders = () => {
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
             {/* Search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
@@ -338,6 +373,20 @@ const AdminOrders = () => {
                 <option value="all">All Methods</option>
                 <option value="cod">Cash on Delivery</option>
                 <option value="razorpay">Online Payment</option>
+              </select>
+            </div>
+
+            {/* Order Type Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Order Type</label>
+              <select
+                value={filters.orderType}
+                onChange={(e) => setFilters(prev => ({ ...prev, orderType: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Orders</option>
+                <option value="products">Product Orders</option>
+                <option value="animals">Animal Orders 🐾</option>
               </select>
             </div>
           </div>
@@ -420,25 +469,46 @@ const AdminOrders = () => {
                       {/* Items */}
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
-                          {order.items.slice(0, 2).map((item, index) => (
-                            <div key={index} className="flex items-center space-x-2 bg-gray-50 rounded-lg p-2 mb-1">
-                              <img
-                                src={getProductImageUrl(item)}
-                                alt={item.name}
-                                className="w-8 h-8 object-cover rounded"
-                                onError={(e) => {
-                                  e.target.src = 'https://placehold.co/32x32?text=?';
-                                }}
-                              />
-                              <div>
-                                <div className="text-xs font-medium text-gray-900 truncate max-w-20">{item.name}</div>
-                                <div className="text-xs text-gray-500">Qty: {item.quantity}</div>
+                          {order.items.slice(0, 2).map((item, index) => {
+                            const isAnimalItem = item.isAnimal === true || 
+                              item.animalId || 
+                              (item.type && item.breed) || 
+                              (item.type && item.ownerName);
+                            
+                            return (
+                              <div key={index} className={`flex items-center space-x-2 rounded-lg p-2 mb-1 ${
+                                isAnimalItem ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                              }`}>
+                                <img
+                                  src={getProductImageUrl(item)}
+                                  alt={item.name}
+                                  className="w-8 h-8 object-cover rounded"
+                                  onError={(e) => {
+                                    e.target.src = 'https://placehold.co/32x32?text=?';
+                                  }}
+                                />
+                                <div>
+                                  <div className="text-xs font-medium text-gray-900 truncate max-w-20 flex items-center">
+                                    {item.name}
+                                    {isAnimalItem && (
+                                      <span className="ml-1 text-xs text-blue-600 font-bold">🐾</span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {isAnimalItem ? 'Animal' : `Qty: ${item.quantity}`}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                           {order.items.length > 2 && (
-                            <div className="text-xs text-gray-500 bg-gray-100 rounded-lg p-2">
+                            <div className={`text-xs text-gray-500 rounded-lg p-2 ${
+                              isAnimalOrder(order) ? 'bg-blue-100' : 'bg-gray-100'
+                            }`}>
                               +{order.items.length - 2} more
+                              {isAnimalOrder(order) && (
+                                <span className="ml-1">🐾</span>
+                              )}
                             </div>
                           )}
                         </div>

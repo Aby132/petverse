@@ -10,6 +10,9 @@ class AnimalService {
     console.log('All environment variables:', Object.keys(process.env).filter(key => key.startsWith('REACT_APP')));
   }
 
+  // Note: Animals are unique items and do not have stock quantities like products
+  // Each animal is a one-of-a-kind item that can only be purchased once
+
   // Get authentication headers
   getHeaders() {
     const headers = {

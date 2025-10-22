@@ -93,6 +93,11 @@ const Orders = () => {
   };
 
   const getProductImageUrl = (item) => {
+    // For animals, handle imageUrls
+    if (item.imageUrls && Array.isArray(item.imageUrls) && item.imageUrls.length > 0) {
+      return item.imageUrls[0];
+    }
+    // For products, handle regular image properties
     if (item.imageUrl) return item.imageUrl;
     if (item.images && Array.isArray(item.images) && item.images.length > 0) {
       const firstImage = item.images[0];
@@ -100,6 +105,14 @@ const Orders = () => {
     }
     if (item.image) return item.image;
     return 'https://placehold.co/80x80?text=No%20Image';
+  };
+
+  // Helper function to check if an item is an animal
+  const isAnimalItem = (item) => {
+    return item.isAnimal === true || 
+           item.animalId || 
+           (item.type && item.breed) || 
+           (item.type && item.ownerName);
   };
 
   if (!isAuthenticated()) {
@@ -225,18 +238,62 @@ const Orders = () => {
                             alt={item.name || 'Product'}
                             className="w-16 h-16 object-cover rounded-lg"
                             onError={(e) => {
-                              e.target.src = 'https://placehold.co/80x80?text=No%20Image';
+                              if (isAnimalItem(item)) {
+                                // Use animal emoji placeholder for animals
+                                const animalEmojis = {
+                                  'Dog': '🐕', 'Cat': '🐱', 'Bird': '🐦', 
+                                  'Fish': '🐠', 'Rabbit': '🐰', 'Hamster': '🐹', 
+                                  'Reptile': '🦎', 'Other': '🐾'
+                                };
+                                const emoji = animalEmojis[item.type] || '🐾';
+                                e.target.src = `https://placehold.co/80x80?text=${emoji}`;
+                              } else {
+                                e.target.src = 'https://placehold.co/80x80?text=No%20Image';
+                              }
                             }}
                           />
                           <div className="flex-1 min-w-0">
                             <h5 className="text-sm font-medium text-gray-900 truncate">
                               {item.name}
                             </h5>
-                            {item.brand && (
-                              <p className="text-sm text-gray-500">{item.brand}</p>
+                            {isAnimalItem(item) ? (
+                              <div className="text-sm text-gray-500 space-y-1">
+                                {item.type && (
+                                  <div className="flex items-center">
+                                    <span className="mr-1">
+                                      {item.type === 'Dog' ? '🐕' : 
+                                       item.type === 'Cat' ? '🐱' : 
+                                       item.type === 'Bird' ? '🐦' : 
+                                       item.type === 'Fish' ? '🐠' : '🐾'}
+                                    </span>
+                                    <span>{item.type}</span>
+                                  </div>
+                                )}
+                                {item.breed && <p>Breed: {item.breed}</p>}
+                                {item.ownerName && <p>Previous Owner: {item.ownerName}</p>}
+                                {/* Show animal order status if available */}
+                                {item.orderStatus && (
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    item.orderStatus === 'delivered' ? 'bg-green-100 text-green-800' :
+                                    item.orderStatus === 'shipped' ? 'bg-purple-100 text-purple-800' :
+                                    item.orderStatus === 'processing' ? 'bg-blue-100 text-blue-800' :
+                                    item.orderStatus === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                    item.orderStatus === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    Animal Status: {item.orderStatus}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              item.brand && (
+                                <p className="text-sm text-gray-500">{item.brand}</p>
+                              )
                             )}
                             <div className="flex items-center mt-1 space-x-4">
-                              <span className="text-sm text-gray-600">Qty: {item.quantity}</span>
+                              <span className="text-sm text-gray-600">
+                                {isAnimalItem(item) ? 'Unique Animal' : `Qty: ${item.quantity}`}
+                              </span>
                               <span className="text-sm font-medium text-gray-900">₹{item.price}</span>
                             </div>
                           </div>

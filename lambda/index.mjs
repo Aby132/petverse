@@ -18,8 +18,10 @@ const generateResponse = (statusCode, body, headers = {}) => {
   const defaultHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,q,Accept,Origin,User-Agent',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    'Access-Control-Allow-Credentials': 'false'
   };
 
   return {
@@ -94,22 +96,32 @@ const extractS3Key = (url) => {
 const getAnimals = async (event) => {
   try {
     console.log('GET request received:', JSON.stringify(event, null, 2));
+    console.log('Environment variables:', {
+      ANIMALS_TABLE,
+      IMAGES_BUCKET,
+      HEALTH_RECORDS_BUCKET
+    });
     
     const { animalId } = event.pathParameters || {};
 
     if (animalId) {
+      console.log(`Fetching animal with ID: ${animalId}`);
       // Get specific animal
       const params = {
         TableName: ANIMALS_TABLE,
         Key: { animalId }
       };
 
+      console.log('DynamoDB get params:', JSON.stringify(params, null, 2));
       const result = await dynamodb.send(new GetCommand(params));
+      console.log('DynamoDB result:', JSON.stringify(result, null, 2));
       
       if (!result.Item) {
+        console.log(`Animal ${animalId} not found`);
         return generateResponse(404, { error: 'Animal not found' });
       }
 
+      console.log(`Successfully retrieved animal ${animalId}`);
       return generateResponse(200, { animal: result.Item });
     } else {
       // Get all animals with query parameters for filtering
@@ -203,6 +215,7 @@ const createAnimal = async (event) => {
       weight: body.weight || '',
       color: body.color || '',
       microchipId: body.microchipId || '',
+      price: body.price ? parseFloat(body.price) : null,
       ownerName: body.ownerName,
       ownerEmail: body.ownerEmail || '',
       ownerPhone: body.ownerPhone || '',
@@ -327,6 +340,7 @@ const updateAnimal = async (event) => {
     const updateData = {
       ...existingAnimal.Item,
       ...body,
+      price: body.price ? parseFloat(body.price) : body.price, // Ensure price is converted to number if provided
       updatedAt: timestamp
     };
 
@@ -386,7 +400,7 @@ const updateAnimal = async (event) => {
     const updateParams = {
       TableName: ANIMALS_TABLE,
       Key: { animalId },
-      UpdateExpression: 'SET #name = :name, #type = :type, #breed = :breed, #age = :age, #gender = :gender, #weight = :weight, #color = :color, #microchipId = :microchipId, #ownerName = :ownerName, #ownerEmail = :ownerEmail, #ownerPhone = :ownerPhone, #address = :address, #emergencyContact = :emergencyContact, #status = :status, #notes = :notes, #imageUrls = :imageUrls, #healthRecordUrl = :healthRecordUrl, #updatedAt = :updatedAt',
+      UpdateExpression: 'SET #name = :name, #type = :type, #breed = :breed, #age = :age, #gender = :gender, #weight = :weight, #color = :color, #microchipId = :microchipId, #price = :price, #ownerName = :ownerName, #ownerEmail = :ownerEmail, #ownerPhone = :ownerPhone, #address = :address, #emergencyContact = :emergencyContact, #status = :status, #notes = :notes, #imageUrls = :imageUrls, #healthRecordUrl = :healthRecordUrl, #updatedAt = :updatedAt',
       ExpressionAttributeNames: {
         '#name': 'name',
         '#type': 'type',
@@ -396,6 +410,7 @@ const updateAnimal = async (event) => {
         '#weight': 'weight',
         '#color': 'color',
         '#microchipId': 'microchipId',
+        '#price': 'price',
         '#ownerName': 'ownerName',
         '#ownerEmail': 'ownerEmail',
         '#ownerPhone': 'ownerPhone',
@@ -416,6 +431,7 @@ const updateAnimal = async (event) => {
         ':weight': updateData.weight,
         ':color': updateData.color,
         ':microchipId': updateData.microchipId,
+        ':price': updateData.price ? parseFloat(updateData.price) : null,
         ':ownerName': updateData.ownerName,
         ':ownerEmail': updateData.ownerEmail,
         ':ownerPhone': updateData.ownerPhone,
@@ -526,29 +542,202 @@ const deleteAnimal = async (event) => {
   }
 };
 
+// PUT - Update animal order status
+const updateAnimalOrderStatus = async (event) => {
+  try {
+    console.log('PUT request received for updating animal order status');
+    console.log('Event details:', JSON.stringify(event, null, 2));
+    
+    const { animalId } = event.pathParameters;
+    
+    if (!event.body) {
+      return generateResponse(400, { error: 'Request body is required' });
+    }
+    
+    const body = JSON.parse(event.body);
+
+    if (!animalId) {
+      return generateResponse(400, { error: 'Animal ID is required' });
+    }
+
+    if (!body.orderStatus) {
+      return generateResponse(400, { error: 'Order status is required' });
+    }
+
+    console.log(`Updating order status for animal ${animalId} to ${body.orderStatus}`);
+
+    // Get existing animal
+    const getParams = {
+      TableName: ANIMALS_TABLE,
+      Key: { animalId }
+    };
+
+    console.log('Getting animal with params:', JSON.stringify(getParams, null, 2));
+    const existingAnimal = await dynamodb.send(new GetCommand(getParams));
+    
+    if (!existingAnimal.Item) {
+      console.log(`Animal ${animalId} not found`);
+      return generateResponse(404, { error: 'Animal not found' });
+    }
+
+    // Determine if animal should be marked as sold
+    const isSold = body.orderStatus === 'delivered' || body.orderStatus === 'completed';
+    const soldAt = isSold ? new Date().toISOString() : null;
+
+    // Update order status and sold status in DynamoDB
+    const updateParams = {
+      TableName: ANIMALS_TABLE,
+      Key: { animalId },
+      UpdateExpression: 'SET #orderStatus = :orderStatus, #updatedAt = :updatedAt, #status = :status, #isSold = :isSold, #availability = :availability, #soldAt = :soldAt',
+      ExpressionAttributeNames: {
+        '#orderStatus': 'orderStatus',
+        '#updatedAt': 'updatedAt',
+        '#status': 'status',
+        '#isSold': 'isSold',
+        '#availability': 'availability',
+        '#soldAt': 'soldAt'
+      },
+      ExpressionAttributeValues: {
+        ':orderStatus': body.orderStatus,
+        ':updatedAt': new Date().toISOString(),
+        ':status': isSold ? 'Sold' : existingAnimal.Item.status,
+        ':isSold': isSold,
+        ':availability': isSold ? 'Sold' : existingAnimal.Item.availability || 'Available',
+        ':soldAt': soldAt
+      }
+    };
+
+    console.log('Updating animal with params:', JSON.stringify(updateParams, null, 2));
+    await dynamodb.send(new UpdateCommand(updateParams));
+
+    console.log(`Successfully updated order status for animal ${animalId}`);
+
+    return generateResponse(200, { 
+      message: 'Animal order status updated successfully',
+      animalId: animalId,
+      orderStatus: body.orderStatus,
+      isSold: isSold,
+      status: isSold ? 'Sold' : existingAnimal.Item.status
+    });
+  } catch (error) {
+    console.error('Error updating animal order status:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    if (error.name === 'ValidationException') {
+      return generateResponse(400, { error: 'Invalid data format' });
+    }
+    
+    return generateResponse(500, { 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+};
+
 // Main handler
 export const handler = async (event) => {
   console.log('Lambda function invoked with event:', JSON.stringify(event, null, 2));
 
   try {
-    const { httpMethod, pathParameters, body } = event;
+    const { httpMethod, path, pathParameters, body } = event;
 
-    switch (httpMethod) {
-      case 'GET':
-        return await getAnimals(event);
-      case 'POST':
-        return await createAnimal(event);
-      case 'PUT':
-        return await updateAnimal(event);
-      case 'DELETE':
-        return await deleteAnimal(event);
-      case 'OPTIONS':
-        return generateResponse(200, {});
-      default:
-        return generateResponse(405, { error: 'Method not allowed' });
+    console.log('Request details:', {
+      httpMethod,
+      path,
+      pathParameters,
+      hasBody: !!body,
+      bodySize: body ? body.length : 0
+    });
+
+    // Handle OPTIONS requests for CORS preflight
+    if (httpMethod === 'OPTIONS') {
+      console.log('Handling OPTIONS request for CORS preflight');
+      return generateResponse(200, { message: 'CORS preflight successful' });
     }
+
+    // Route based on path pattern
+    if (path) {
+      // Handle /animals/{animalId}/order-status endpoint
+      if (path.includes('/order-status')) {
+        console.log('Routing to order status endpoint');
+        if (httpMethod === 'PUT') {
+          return await updateAnimalOrderStatus(event);
+        } else {
+          return generateResponse(405, { 
+            error: 'Method not allowed for order status endpoint',
+            allowedMethods: ['PUT']
+          });
+        }
+      }
+      
+      // Handle /animals/{animalId} endpoint (specific animal operations)
+      if (path.includes('/animals/') && pathParameters && pathParameters.animalId) {
+        console.log('Routing to specific animal operations');
+        switch (httpMethod) {
+          case 'GET':
+            return await getAnimals(event);
+          case 'PUT':
+            return await updateAnimal(event);
+          case 'DELETE':
+            return await deleteAnimal(event);
+          default:
+            return generateResponse(405, { 
+              error: 'Method not allowed for specific animal endpoint',
+              allowedMethods: ['GET', 'PUT', 'DELETE']
+            });
+        }
+      }
+      
+      // Handle /animals endpoint (list animals or create new)
+      if (path === '/animals' || path.endsWith('/animals')) {
+        console.log('Routing to animals collection endpoint');
+        switch (httpMethod) {
+          case 'GET':
+            return await getAnimals(event);
+          case 'POST':
+            return await createAnimal(event);
+          default:
+            return generateResponse(405, { 
+              error: 'Method not allowed for animals collection',
+              allowedMethods: ['GET', 'POST']
+            });
+        }
+      }
+    }
+
+    // Fallback for unrecognized paths
+    console.log('No matching route found for path:', path);
+    return generateResponse(404, { 
+      error: 'Endpoint not found',
+      path: path,
+      method: httpMethod,
+      availableEndpoints: [
+        'GET /animals - List all animals',
+        'POST /animals - Create new animal',
+        'GET /animals/{animalId} - Get specific animal',
+        'PUT /animals/{animalId} - Update specific animal',
+        'DELETE /animals/{animalId} - Delete specific animal',
+        'PUT /animals/{animalId}/order-status - Update animal order status'
+      ]
+    });
+
   } catch (error) {
     console.error('Handler error:', error);
-    return generateResponse(500, { error: 'Internal server error' });
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Return detailed error for debugging
+    return generateResponse(500, { 
+      error: 'Internal server error',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 };
