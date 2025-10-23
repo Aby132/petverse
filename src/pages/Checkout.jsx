@@ -5,6 +5,7 @@ import Footer from '../components/Footer';
 import Swal from 'sweetalert2';
 import productService from '../services/productService';
 import AnimalService from '../services/animalService';
+import cartService from '../services/cartService';
 
 // Direct API configuration - no services needed
 const API_BASE_URL = 'https://m3hoptm1hi.execute-api.us-east-1.amazonaws.com/prod';
@@ -28,6 +29,7 @@ const Checkout = () => {
   const [isAddressUpdating, setIsAddressUpdating] = useState(false);
   const [enrichedCartItems, setEnrichedCartItems] = useState([]);
   const [animalService, setAnimalService] = useState(null);
+  const [cartServiceInstance, setCartServiceInstance] = useState(null);
 
   // Helper function to check if item is an animal
   const isAnimal = (item) => {
@@ -82,26 +84,66 @@ const Checkout = () => {
       return;
     }
     
-    // Initialize animal service
+    // Initialize services
     if (user) {
       setAnimalService(new AnimalService(user));
+      setCartServiceInstance(cartService);
     }
     
     loadCheckoutData();
   }, [isAuthenticated, navigate, user]);
 
+  // Listen for cart updates from other components
+  useEffect(() => {
+    const handleCartUpdate = (event) => {
+      if (event.detail && Array.isArray(event.detail)) {
+        console.log('Cart updated in checkout, refreshing cart items:', {
+          newCartCount: event.detail.length,
+          newCartItems: event.detail.map(item => ({
+            id: item.productId || item.animalId,
+            name: item.name,
+            isAnimal: isAnimal(item)
+          }))
+        });
+        setCartItems(event.detail);
+        setEnrichedCartItems(event.detail);
+      }
+    };
+
+    window.addEventListener('cartUpdated', handleCartUpdate);
+    return () => {
+      window.removeEventListener('cartUpdated', handleCartUpdate);
+    };
+  }, []);
+
   const loadCheckoutData = async () => {
     try {
       setLoading(true);
       
-      // Load cart items from localStorage
+      // Load cart items from localStorage and ensure we have the latest data
       const cartData = localStorage.getItem('petverse_cart');
       const items = cartData ? JSON.parse(cartData) : [];
-      setCartItems(items);
+      
+      // Filter out any items that might have been removed but not properly synced
+      const filteredItems = items.filter(item => {
+        // For animals, check if they still exist in the cart
+        if (isAnimal(item)) {
+          return true; // Keep all animals for now, let the user decide
+        }
+        // For products, keep them as they are
+        return true;
+      });
+      
+      console.log('Loading checkout data:', { 
+        originalCount: items.length, 
+        filteredCount: filteredItems.length 
+      });
+      
+      setCartItems(filteredItems);
       
       // Enrich cart items with product details if images are missing
       const enriched = await Promise.all(
-        items.map(async (item) => {
+        filteredItems.map(async (item) => {
           if (!item.imageUrl && (!item.images || item.images.length === 0)) {
             try {
               const response = await fetch(`${PRODUCT_API_URL}/products/${item.productId}`);
@@ -489,8 +531,21 @@ const Checkout = () => {
         } catch (e) {
           console.warn('Post-order processing failed:', e);
         }
-        // Clear cart regardless; backend stock is source of truth
-        localStorage.removeItem('petverse_cart');
+        
+        // Clear cart only after successful order placement using cart service
+        console.log('Order placed successfully - clearing cart');
+        
+        // Use cart service to properly clear cart and notify components
+        if (cartServiceInstance && typeof cartServiceInstance.clearCartAfterOrder === 'function') {
+          await cartServiceInstance.clearCartAfterOrder();
+        } else {
+          // Fallback to direct localStorage clearing
+          localStorage.removeItem('petverse_cart');
+          window.dispatchEvent(new CustomEvent('cartUpdated', { 
+            detail: [] 
+          }));
+        }
+        
         navigate('/order-confirmation', { state: extra });
       };
 

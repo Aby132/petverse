@@ -248,7 +248,7 @@ const Cart = () => {
     }
   };
 
-  const removeItem = async (productId) => {
+  const removeItem = async (itemId) => {
     try {
       setError('');
       
@@ -256,20 +256,57 @@ const Cart = () => {
         throw new Error('Cart service not available');
       }
 
+      // Find the item to determine if it's an animal
+      const itemToRemove = cartItems.find(item => 
+        item.productId === itemId || item.animalId === itemId
+      );
+      
+      if (!itemToRemove) {
+        console.warn('Item not found in cart:', itemId);
+        return;
+      }
+
       // Optimistic update - remove from UI immediately
       const originalItems = [...cartItems];
-      setCartItems(prevItems => prevItems.filter(item => item.productId !== productId));
+      setCartItems(prevItems => prevItems.filter(item => 
+        item.productId !== itemId && item.animalId !== itemId
+      ));
 
-      const result = await cartService.removeFromCart(productId);
+      // For animals, we need to handle removal differently
+      if (isAnimal(itemToRemove)) {
+        console.log('Removing animal from cart:', itemToRemove.name);
+        
+        // For animals, we can remove directly from localStorage since they don't sync with backend
+        const updatedCart = cartItems.filter(item => 
+          item.productId !== itemId && item.animalId !== itemId
+        );
+        
+        // Update localStorage
+        localStorage.setItem('petverse_cart', JSON.stringify(updatedCart));
+        
+        // Update the UI state
+        setCartItems(updatedCart);
+        
+        // Dispatch cart update event to notify other components
+        window.dispatchEvent(new CustomEvent('cartUpdated', { 
+          detail: updatedCart 
+        }));
+        
+        console.log('Animal removed successfully from cart');
+        return;
+      }
+
+      // For regular products, use the cart service
+      const result = await cartService.removeFromCart(itemId);
       
       if (result && result.success) {
         // Use the updated cart from the service (already updated optimistically)
         setCartItems(Array.isArray(result.cart) ? result.cart : []);
-        console.log('Item removed successfully:', productId);
+        console.log('Product removed successfully:', itemId);
       } else {
         // Revert optimistic update on failure
         setCartItems(originalItems);
-        console.warn('Failed to remove item:', result?.message || 'Unknown error');
+        console.warn('Failed to remove product:', result?.message || 'Unknown error');
         setError('Failed to remove item. Please try again.');
       }
     } catch (error) {
@@ -491,6 +528,59 @@ const Cart = () => {
     }
   };
 
+  // Function to remove a specific animal from cart with confirmation
+  const removeAnimalFromCart = async (animalId, animalName) => {
+    try {
+      // Find the animal to check if it's sold
+      const animal = cartItems.find(item => 
+        (item.animalId === animalId || item.productId === animalId) && isAnimal(item)
+      );
+      const isSold = animal ? isAnimalSold(animal) : false;
+
+      const result = await Swal.fire({
+        title: isSold ? 'Remove Sold Animal from Cart?' : 'Remove Animal from Cart?',
+        html: `
+          <div class="text-left">
+            <p class="mb-2">Are you sure you want to remove <strong>${animalName}</strong> from your cart?</p>
+            ${isSold ? '<p class="text-sm text-red-600 font-medium">⚠️ This animal is marked as sold</p>' : ''}
+            <p class="text-sm text-gray-600">This action cannot be undone.</p>
+          </div>
+        `,
+        icon: isSold ? 'warning' : 'question',
+        showCancelButton: true,
+        confirmButtonColor: isSold ? '#ef4444' : '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: isSold ? 'Yes, remove sold animal!' : 'Yes, remove it!',
+        cancelButtonText: 'Cancel'
+      });
+
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      // Remove the animal from cart
+      await removeItem(animalId);
+      
+      // Show success message
+      Swal.fire({
+        icon: 'success',
+        title: 'Animal Removed',
+        text: `${animalName} has been removed from your cart.`,
+        confirmButtonColor: '#3B82F6',
+        timer: 2000,
+        showConfirmButton: true
+      });
+    } catch (error) {
+      console.error('Error removing animal from cart:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Remove Failed',
+        text: 'Failed to remove animal from cart. Please try again.',
+        confirmButtonColor: '#3B82F6'
+      });
+    }
+  };
+
   // Helper function to verify animal availability by checking the API
   const verifyAnimalAvailability = async (animalId) => {
     try {
@@ -615,71 +705,8 @@ const Cart = () => {
       return;
     }
 
-    // Show confirmation dialog
-    const result = await Swal.fire({
-      title: 'Proceed to Checkout?',
-      html: `
-        <div class="text-left">
-          <p class="mb-2">Your order contains:</p>
-          <ul class="list-disc list-inside space-y-1 text-sm">
-            ${cartItems.filter(item => !isAnimal(item)).length > 0 ? `<li>${cartItems.filter(item => !isAnimal(item)).length} product(s) - will be removed from cart after order</li>` : ''}
-            ${cartItems.filter(item => isAnimal(item)).length > 0 ? `<li>${cartItems.filter(item => isAnimal(item)).length} animal(s) - will be marked as sold</li>` : ''}
-          </ul>
-        </div>
-      `,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#3B82F6',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Yes, proceed!',
-      cancelButtonText: 'Cancel'
-    });
-
-    if (!result.isConfirmed) {
-      return;
-    }
-
-    try {
-      setUpdating(true);
-      
-      // Process checkout using cartService
-      const checkoutResult = await cartService.handleCheckout();
-      
-      if (checkoutResult.success) {
-        // Show success message
-        Swal.fire({
-          icon: 'success',
-          title: 'Checkout Processed!',
-          html: `
-            <div class="text-left">
-              <p class="mb-2">Checkout completed successfully:</p>
-              <ul class="list-disc list-inside space-y-1 text-sm">
-                ${checkoutResult.productsRemoved > 0 ? `<li>${checkoutResult.productsRemoved} product(s) removed from cart</li>` : ''}
-                ${checkoutResult.animalsMarkedAsSold > 0 ? `<li>${checkoutResult.animalsMarkedAsSold} animal(s) marked as sold</li>` : ''}
-              </ul>
-            </div>
-          `,
-          confirmButtonColor: '#3B82F6',
-          timer: 3000,
-          showConfirmButton: true
-        });
-
-    // Navigate to checkout page
+    // Navigate directly to checkout page - cart items will remain until order is successfully placed
     navigate('/checkout');
-      } else {
-        throw new Error(checkoutResult.error || 'Checkout failed');
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Checkout Failed',
-        text: error.message || 'Failed to process checkout. Please try again.',
-        confirmButtonColor: '#3B82F6'
-      });
-    } finally {
-      setUpdating(false);
-    }
   };
 
   // Error display component
@@ -811,13 +838,23 @@ const Cart = () => {
                           )}
                         </div>
                         <button
-                          onClick={() => removeItem(isAnimal(item) ? item.animalId || item.productId : item.productId)}
-                          disabled={updating || animalIsSold}
+                          onClick={() => {
+                            if (isAnimal(item)) {
+                              removeAnimalFromCart(item.animalId || item.productId, item.name);
+                            } else {
+                              removeItem(item.productId);
+                            }
+                          }}
+                          disabled={updating}
                           className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                             animalIsSold 
-                              ? 'text-gray-300 cursor-not-allowed' 
+                              ? 'text-red-400 hover:text-red-600' 
                               : 'text-gray-400 hover:text-red-500'
                           }`}
+                          title={isAnimal(item) ? 
+                            (animalIsSold ? 'Remove sold animal from cart' : 'Remove animal from cart') : 
+                            'Remove product from cart'
+                          }
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -918,8 +955,56 @@ const Cart = () => {
                 );
               })}
 
-              {/* Clear Cart Button */}
-              <div className="flex justify-end">
+              {/* Cart Action Buttons */}
+              <div className="flex justify-between items-center">
+                <div className="flex space-x-4">
+                  {cartItems.filter(item => isAnimal(item)).length > 0 && (
+                    <button
+                      onClick={async () => {
+                        const animals = cartItems.filter(item => isAnimal(item));
+                        const animalCount = animals.length;
+                        const soldCount = animals.filter(item => isAnimalSold(item)).length;
+                        
+                        const result = await Swal.fire({
+                          title: 'Remove All Animals?',
+                          html: `
+                            <div class="text-left">
+                              <p class="mb-2">Are you sure you want to remove all <strong>${animalCount} animal(s)</strong> from your cart?</p>
+                              ${soldCount > 0 ? `<p class="text-sm text-red-600 font-medium">⚠️ ${soldCount} of these animals are marked as sold</p>` : ''}
+                              <p class="text-sm text-gray-600">This action cannot be undone.</p>
+                            </div>
+                          `,
+                          icon: soldCount > 0 ? 'warning' : 'question',
+                          showCancelButton: true,
+                          confirmButtonColor: '#ef4444',
+                          cancelButtonColor: '#6b7280',
+                          confirmButtonText: soldCount > 0 ? 'Yes, remove all (including sold)!' : 'Yes, remove all!',
+                          cancelButtonText: 'Cancel'
+                        });
+
+                        if (result.isConfirmed) {
+                          const animalIds = animals.map(item => item.animalId || item.productId);
+                          
+                          for (const animalId of animalIds) {
+                            await removeItem(animalId);
+                          }
+                          
+                          Swal.fire({
+                            icon: 'success',
+                            title: 'Animals Removed',
+                            text: `All ${animalCount} animals have been removed from your cart.`,
+                            confirmButtonColor: '#3B82F6',
+                            timer: 2000,
+                            showConfirmButton: true
+                          });
+                        }
+                      }}
+                      className="text-orange-600 hover:text-orange-700 font-medium transition-colors"
+                    >
+                      Remove All Animals
+                    </button>
+                  )}
+                </div>
                 <button
                   onClick={clearCart}
                   className="text-red-600 hover:text-red-700 font-medium transition-colors"

@@ -388,7 +388,10 @@ class CartService {
 
   applyOptimisticRemove(productId) {
       const currentCart = this.getCartFromLocalStorage();
-      const filteredCart = currentCart.filter(item => item.productId !== productId);
+      // Handle both productId and animalId for removal
+      const filteredCart = currentCart.filter(item => 
+        item.productId !== productId && item.animalId !== productId
+      );
       this.updateLocalStorage(filteredCart);
     return { cart: filteredCart };
   }
@@ -495,7 +498,7 @@ class CartService {
     return false;
   }
 
-  // Function to handle checkout - remove products, mark animals as sold
+  // Function to handle checkout - validate cart but don't remove items yet
   async handleCheckout(userId = null) {
     try {
       const currentUserId = userId || this.getCurrentUserId();
@@ -509,62 +512,47 @@ class CartService {
       const products = cartItems.filter(item => !this.isAnimalItem(item));
       const animals = cartItems.filter(item => this.isAnimalItem(item));
 
-      console.log(`Processing checkout: ${products.length} products, ${animals.length} animals`);
+      console.log(`Validating checkout: ${products.length} products, ${animals.length} animals`);
 
-      // Remove all products from cart (they will be processed in the order)
-      if (products.length > 0) {
-        for (const product of products) {
-          await this.removeFromCart(product.productId, currentUserId);
-        }
-        console.log(`Removed ${products.length} products from cart after checkout`);
-      }
-
-      // Mark animals as sold but keep them in cart with "Sold" status
-      if (animals.length > 0) {
-        const updatedCart = [];
-        
-        for (const animal of animals) {
-          // Mark animal as sold
-          const soldAnimal = {
-            ...animal,
-            status: 'Sold',
-            orderStatus: 'delivered',
-            isSold: true,
-            availability: 'Sold',
-            soldAt: new Date().toISOString()
-          };
-          
-          updatedCart.push(soldAnimal);
-          
-          // Update animal status in backend
-          try {
-            await fetch(`https://gk394j27jg.execute-api.us-east-1.amazonaws.com/prod/animals/${animal.animalId || animal.productId}/order-status`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderStatus: 'delivered' })
-            });
-            console.log(`Marked animal ${animal.animalId || animal.productId} as sold`);
-          } catch (error) {
-            console.warn(`Failed to update animal status in backend:`, error);
-            // Continue even if backend update fails
-          }
-        }
-        
-        // Update local storage with sold animals
-        this.updateLocalStorage(updatedCart);
-        this.dispatchCartUpdate(updatedCart);
-        
-        console.log(`Marked ${animals.length} animals as sold`);
-      }
+      // Don't remove products from cart yet - they will be removed only after successful order placement
+      // Just validate that cart has items and return success
+      // Products will be removed in Checkout.jsx after successful order placement
+      // Animals will be marked as sold in Checkout.jsx after successful order placement
 
       return { 
         success: true, 
-        message: `Checkout completed: ${products.length} products removed, ${animals.length} animals marked as sold`,
-        productsRemoved: products.length,
-        animalsMarkedAsSold: animals.length
+        message: `Checkout validation completed: ${products.length} products, ${animals.length} animals ready for order`,
+        productsCount: products.length,
+        animalsCount: animals.length
       };
     } catch (error) {
-      console.error('Error during checkout:', error);
+      console.error('Error during checkout validation:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Function to clear cart after successful order placement
+  async clearCartAfterOrder(userId = null) {
+    try {
+      const currentUserId = userId || this.getCurrentUserId();
+      
+      // Clear cart from localStorage
+      localStorage.removeItem('petverse_cart');
+      
+      // Clear cache for this user
+      if (currentUserId) {
+        const cacheKey = `cart_${currentUserId}`;
+        this.cache.delete(cacheKey);
+        console.log('Cleared cart cache for user:', currentUserId);
+      }
+      
+      // Dispatch cart update event to notify other components
+      this.dispatchCartUpdate([]);
+      
+      console.log('Cart cleared after successful order placement');
+      return { success: true, message: 'Cart cleared successfully' };
+    } catch (error) {
+      console.error('Error clearing cart after order:', error);
       return { success: false, error: error.message };
     }
   }
